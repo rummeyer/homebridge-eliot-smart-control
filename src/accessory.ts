@@ -11,7 +11,7 @@ import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge
 
 import type { DeskConfig } from './config.ts';
 import { Desk } from './eliot/desk.ts';
-import type { DeskState, MoveOutcome } from './eliot/desk.ts';
+import type { DeskState, MoveOutcome, Transport } from './eliot/desk.ts';
 import { DeskLink } from './eliot/link.ts';
 import type { EliotPlatform } from './platform.ts';
 
@@ -45,14 +45,25 @@ export class EliotAccessory {
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
 
-  constructor(platform: EliotPlatform, accessory: PlatformAccessory, config: DeskConfig) {
+  /**
+   * @param transport Stand-in for the Bluetooth link. Only tests pass one;
+   *   in normal use the accessory builds its own. Without this seam there is
+   *   no way to exercise the accessory without a desk in the room, and the
+   *   handler wiring is exactly the part that needs exercising.
+   */
+  constructor(
+    platform: EliotPlatform,
+    accessory: PlatformAccessory,
+    config: DeskConfig,
+    transport?: Transport,
+  ) {
     this.#platform = platform;
     this.#accessory = accessory;
     this.#config = config;
 
     const { Characteristic, Service: HapService } = platform.api.hap;
 
-    const link = new DeskLink(config.mac, platform.log);
+    const link = transport ?? new DeskLink(config.mac, platform.log);
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
     });
@@ -196,27 +207,30 @@ export class EliotAccessory {
     for (const slot of MEMORY_SLOTS) {
       const height = state.memories[slot - 1];
       const subtype = `memory${slot}`;
-      const existing =
-        this.#memoryServices.get(slot) ??
-        this.#accessory.getServiceById(HapService.Switch, subtype) ??
-        undefined;
+      // Already wired up in this process; nothing to do.
+      if (this.#memoryServices.has(slot)) {
+        continue;
+      }
+
+      const restored = this.#accessory.getServiceById(HapService.Switch, subtype);
 
       if (height == null) {
         // The desk has no such preset — drop a switch left over from when it
         // did, rather than leaving a button that cannot do anything.
-        if (existing) {
-          this.#accessory.removeService(existing);
-          this.#memoryServices.delete(slot);
+        if (restored) {
+          this.#accessory.removeService(restored);
         }
-        continue;
-      }
-      if (existing) {
-        this.#memoryServices.set(slot, existing);
         continue;
       }
 
       const label = this.#config.memoryNames?.[slot - 1] ?? `Memory ${slot}`;
-      const service = this.#accessory.addService(HapService.Switch, `${this.#config.name} ${label}`, subtype);
+      // A restored service is reused, but its handlers are NOT: Homebridge
+      // brings services back from its cache without them, because they only
+      // exist at runtime. Taking the service and skipping the wiring leaves a
+      // switch that is present in the Home app and does nothing when pressed.
+      const service =
+        restored ??
+        this.#accessory.addService(HapService.Switch, `${this.#config.name} ${label}`, subtype);
       this.#name(service, label);
       // Momentary, not stateful. What these are for is going somewhere, and a
       // switch that stays on afterwards invites being switched off — which
