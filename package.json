@@ -1,0 +1,56 @@
+{
+  "name": "homebridge-eliot-smart-control",
+  "displayName": "Eliot Smart Control",
+  "version": "0.0.0",
+  "description": "Homebridge plugin for the Eliot sit-stand desk with the Smart Dongle, over Bluetooth LE",
+  "license": "MIT",
+  "author": "Oliver Rummeyer",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/rummeyer/homebridge-eliot-smart-control.git"
+  },
+  "bugs": {
+    "url": "https://github.com/rummeyer/homebridge-eliot-smart-control/issues"
+  },
+  "main": "dist/index.js",
+  "engines": {
+    "node": "^22.18.0 || ^24.0.0 || ^26.0.0",
+    "homebridge": "^2.0.0"
+  },
+  "keywords": [
+    "homebridge-plugin",
+    "eliot",
+    "smartfurniture",
+    "standing-desk",
+    "sit-stand",
+    "jiecang",
+    "bluetooth",
+    "ble",
+    "homekit"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "watch": "tsc --watch",
+    "clean": "rm -rf dist",
+    "test": "node --test test/*.test.ts",
+    "probe": "node tools/eliot-probe.js"
+  },
+  "dependencies": {
+    "node-ble": "^1.13.0"
+  },
+  "devDependencies": {
+    "@types/node": "^22.20.0",
+    "homebridge": "^2.4.0",
+    "typescript": "^5.9.3"
+  },
+  "files": [
+    "dist",
+    "tools",
+    "docs",
+    "config.schema.json",
+    "README.md",
+    "LICENSE"
+  ],
+  "homepage": "https://github.com/rummeyer/homebridge-eliot-smart-control#readme",
+  "type": "module"
+}
