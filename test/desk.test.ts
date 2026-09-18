@@ -230,6 +230,38 @@ test('losing the link mid-move ends it as disconnected', async () => {
   await box.close();
 });
 
+test('measurement noise is not mistaken for somebody at the handset', async () => {
+  const { box, desk } = await ready(880);
+  const target = desk.state.target;
+
+  // What the control box actually does on a desk nobody is touching: the
+  // reported height wanders a few millimetres either way, indefinitely.
+  for (const mm of [884, 879, 883, 877, 882, 878, 884, 880, 885, 879]) {
+    box.handset(mm);
+    await tick(10);
+  }
+
+  assert.equal(desk.state.target, target, 'the target must not drift with the noise');
+  await desk.close();
+  await box.close();
+});
+
+test('a slow handset move is caught even in steps below the threshold', async () => {
+  const { box, desk } = await ready(880);
+
+  // Comparing consecutive readings would miss this entirely: no single step
+  // reaches the threshold, but the desk ends up 100 mm higher.
+  for (let mm = 890; mm <= 980; mm += 10) {
+    box.handset(mm);
+    await tick(10);
+  }
+
+  assert.equal(desk.state.heightMm, 980);
+  assert.equal(desk.state.target, desk.state.position, 'the target followed it up');
+  await desk.close();
+  await box.close();
+});
+
 test('the handset moving the desk updates the target too', async () => {
   const { box, desk } = await ready(880);
 

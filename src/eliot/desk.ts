@@ -70,7 +70,18 @@ export interface DeskOptions {
    * showing a height from an hour ago.
    */
   idlePollMs: number;
-  /** A height change this large while at rest means somebody else moved it. */
+  /**
+   * How far the desk must be from where it was resting to count as moved.
+   *
+   * Measured against the resting height, not the previous reading. The control
+   * box's height wanders by a few millimetres between reports on a desk nobody
+   * is touching, so comparing consecutive readings reports phantom movement;
+   * comparing against the last settled position absorbs that, while a real
+   * move still accumulates past the threshold however slowly it is made.
+   *
+   * Above the observed noise of about 5 mm, and below the ~18 mm the desk
+   * needs to stop — a move smaller than that cannot be made deliberately.
+   */
   externalMoveMm: number;
   /**
    * How long after a move to keep treating height changes as our own.
@@ -86,7 +97,7 @@ export interface DeskOptions {
 
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
   idlePollMs: 30_000,
-  externalMoveMm: 5,
+  externalMoveMm: 15,
   settleMs: 3000,
   move: {},
 };
@@ -110,6 +121,8 @@ export class Desk extends EventEmitter {
   #physMin: number | null = null;
   #physMax: number | null = null;
   #targetMm: number | null = null;
+  /** Where the desk was last settled, for telling real movement from noise. */
+  #restingMm: number | null = null;
 
   #move: {
     controller: MoveController;
@@ -288,6 +301,7 @@ export class Desk extends EventEmitter {
     }
     this.#move = null;
     this.#settleUntil = Date.now() + this.#opts.settleMs;
+    this.#restingMm = this.#heightMm;
 
     // On success the target stays where it was asked for. Reading it back off
     // the desk would throw the request away at the moment it succeeded, and
@@ -344,7 +358,6 @@ export class Desk extends EventEmitter {
   }
 
   #onHeight(heightMm: number): void {
-    const previous = this.#heightMm;
     this.#heightMm = heightMm;
 
     if (this.#move) {
@@ -354,7 +367,16 @@ export class Desk extends EventEmitter {
     }
 
     if (Date.now() < this.#settleUntil) {
-      // Still coasting from our own last pulse.
+      // Still coasting from our own last pulse; our own target stands.
+      this.#restingMm = heightMm;
+      this.#emitChange();
+      return;
+    }
+
+    const resting = this.#restingMm;
+    if (resting !== null && Math.abs(heightMm - resting) < this.#opts.externalMoveMm) {
+      // Within the noise of where it was already sitting. Report the height,
+      // but do not read intent into it.
       this.#emitChange();
       return;
     }
@@ -362,13 +384,12 @@ export class Desk extends EventEmitter {
     // Nobody here asked for this. Either the handset moved it or it was moved
     // while we were away; either way the target follows the desk rather than
     // the desk being dragged back to a target it never agreed to.
-    if (previous === null || Math.abs(heightMm - previous) >= this.#opts.externalMoveMm) {
-      if (previous !== null) {
-        this.#log.debug(`moved elsewhere: ${previous} → ${heightMm} mm`);
-      }
-      this.#targetMm = heightMm;
-      this.#emitChange();
+    if (resting !== null) {
+      this.#log.debug(`moved elsewhere: ${resting} → ${heightMm} mm`);
     }
+    this.#restingMm = heightMm;
+    this.#targetMm = heightMm;
+    this.#emitChange();
   }
 
   async #onConnected(): Promise<void> {
