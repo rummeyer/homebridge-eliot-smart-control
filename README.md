@@ -147,9 +147,10 @@ be moving forever.
 keeps telling it to, and stops when that stops — so a stop still coasts the
 same ~18 mm any move does.
 
-**A memory move cannot be called off at all.** Once the command is sent the
-control box drives itself, and there is nothing to withhold. Stopping it means
-reaching for the handset.
+**A memory move can be stopped**, even though the control box is driving it
+itself. There is no stop command, but any step command cancels one — the same
+thing that happens when you touch the handset mid-move. It then coasts to a
+halt like any other move.
 
 **The desk's own safety features still apply.** Anti-collision and the soft
 limits live in the control box and are untouched by this plugin, which adds its

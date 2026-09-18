@@ -176,6 +176,27 @@ only produce hunting, so the controller arrives without sending anything. In
 HomeKit terms roughly 3% is the finest step that actually moves the desk, and a
 smaller request will leave the reported position where it was.
 
+## Memory positions
+
+`MOVE_1`, `MOVE_2`, `MOVE_3` and `MOVE_4` hand the whole job to the control
+box, and it does it better than the step commands allow: sent **once**, it runs
+its own ramp and eases into the stored height. Verified on hardware — 878 mm to
+998 mm against a stored 1000 mm, with the reported height slowing from 5 mm per
+report to 1 mm as it arrived.
+
+**A memory move can be cancelled by any step command.** Also verified: a move
+from 1203 mm towards 801 mm stopped at 1148 mm after a single `LOWER`, 347 mm
+short, coasting the usual ~12 mm. This is presumably the same mechanism that
+lets a handset press interrupt one. There is no dedicated stop command, and
+this is the closest thing to one.
+
+Send the cancelling step in the direction the desk is already travelling. If a
+control box were ever to ignore it, the cost is one extra step the way it was
+already going rather than a lurch the other way.
+
+An unset memory reports a height of `0`, which no desk could be at; treat it as
+absent rather than as a destination.
+
 ## The consequence for HomeKit
 
 **There is no "move to height X" command.** The handset protocol only has

@@ -265,6 +265,8 @@ export class Desk extends EventEmitter {
 
     const targetMm = percentToHeight(percent, min, max);
     this.#endMove('superseded');
+    this.#cancelNative();
+    this.#endNative('superseded');
     this.#targetMm = targetMm;
 
     const controller = new MoveController(targetMm, this.#heightMm, Date.now(), this.#opts.move);
@@ -290,8 +292,7 @@ export class Desk extends EventEmitter {
    * millimetres. That is better than this plugin can manage with step
    * commands, so a preset is not simply {@link moveTo} with a stored height.
    *
-   * The consequence is that the move cannot be called off once it has started
-   * — there is no command for that, and {@link stop} has nothing to withhold.
+   * It can still be called off: see {@link stop}.
    */
   async moveToMemory(slot: number): Promise<MoveOutcome> {
     const target = this.#memories[slot - 1];
@@ -305,6 +306,7 @@ export class Desk extends EventEmitter {
 
     const command = [Cmd.MOVE_1, Cmd.MOVE_2, Cmd.MOVE_3, Cmd.MOVE_4][slot - 1];
     this.#endMove('superseded');
+    this.#cancelNative();
     this.#endNative('superseded');
 
     const from = this.#heightMm;
@@ -398,9 +400,10 @@ export class Desk extends EventEmitter {
    */
   stop(): void {
     if (this.#native) {
-      // Nothing to withhold: the box is driving itself and the protocol has no
-      // way to call it back. Saying so beats silently doing nothing.
-      this.#log.warn('cannot stop a memory move — the control box finishes it by itself');
+      this.#log.info('stopping memory move');
+      this.#cancelNative();
+      this.#endNative('superseded');
+      return;
     }
     if (this.#move) {
       this.#log.info('stopping');
@@ -408,6 +411,28 @@ export class Desk extends EventEmitter {
       this.#targetMm = this.#heightMm;
       this.#emitChange();
     }
+  }
+
+  /**
+   * Call off a move the control box is driving.
+   *
+   * There is no stop command, but a single step command cancels a memory move
+   * — verified on hardware: a move from 1203 mm towards 801 mm stopped at
+   * 1148 mm after one `LOWER`, 347 mm short. It then coasts the usual ~12 mm.
+   *
+   * The step goes the way the desk is already travelling, deliberately. If a
+   * future control box ignores the cancel, the worst case is one extra step in
+   * the direction it was going anyway, rather than a lurch the other way.
+   */
+  #cancelNative(): void {
+    const native = this.#native;
+    if (!native) {
+      return;
+    }
+    const command = native.direction === 'up' ? Cmd.RAISE : Cmd.LOWER;
+    void this.#transport
+      .send(command)
+      .catch((error: unknown) => this.#log.debug(`cancelling memory move failed: ${String(error)}`));
   }
 
   #tick(): void {

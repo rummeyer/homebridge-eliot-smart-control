@@ -40,20 +40,47 @@ class FakeDesk extends EventEmitter implements Transport {
   constructor(startMm = 880) {
     super();
     this.heightMm = startMm;
+    // unref: a test that fails before close() must not hold the process open.
     this.#mover = setInterval(() => this.#advance(), 20);
+    this.#mover.unref();
     this.#reporter = setInterval(() => {
       if (Date.now() - this.#lastPulse < 900) {
         this.emit('frame', report(Report.HEIGHT, [...be(Math.round(this.heightMm)), 0x07]));
       }
     }, 150);
+    this.#reporter.unref();
+  }
+
+  #driving = false;
+  /**
+   * Which drive is current.
+   *
+   * A boolean is not enough: cancelling and immediately starting another move
+   * would let the cancelled loop see the flag set again and carry on towards
+   * its old target, so two drives pulled the desk in opposite directions. A
+   * real control box has one motor and one destination.
+   */
+  #driveSeq = 0;
+
+  /** Cancel whatever the box is driving, which is what a step command does. */
+  #cancelDrive(): void {
+    this.#driveSeq += 1;
+    this.#driving = false;
   }
 
   /** What the control box does by itself after a memory command. */
   #driveTo(target: number): void {
+    this.#driveSeq += 1;
+    const seq = this.#driveSeq;
+    this.#driving = true;
     const step = () => {
+      if (seq !== this.#driveSeq) {
+        return;
+      }
       const delta = target - this.heightMm;
       if (Math.abs(delta) < 1) {
         this.heightMm = target;
+        this.#driving = false;
         this.emit('frame', report(Report.HEIGHT, [...be(Math.round(this.heightMm)), 0x07]));
         return;
       }
@@ -65,10 +92,16 @@ class FakeDesk extends EventEmitter implements Transport {
   }
 
   #advance(): void {
-    if (this.blocked || Date.now() - this.#lastPulse >= 900) {
+    // Two drives must never run at once: while the box is running its own
+    // memory ramp, pulses do nothing. Letting both move the desk made the
+    // fake overshoot in ways no real control box would.
+    if (this.blocked || this.#driving || Date.now() - this.#lastPulse >= 900) {
       return;
     }
     const last = this.sent[this.sent.length - 1];
+    if (last !== Cmd.RAISE && last !== Cmd.LOWER) {
+      return;
+    }
     this.heightMm += (last === Cmd.RAISE ? 1 : -1) * 22 * 0.02;
   }
 
@@ -78,6 +111,8 @@ class FakeDesk extends EventEmitter implements Transport {
     }
     this.sent.push(command);
     if (command === Cmd.RAISE || command === Cmd.LOWER) {
+      // Verified on hardware: any step command cancels a memory move.
+      this.#cancelDrive();
       this.#lastPulse = Date.now();
       return;
     }
@@ -361,6 +396,41 @@ test('a memory move sends one command and lets the control box drive', async () 
   // One command, not a stream of steps: the box has its own ramp.
   assert.equal(box.sent.filter((c) => c === Cmd.MOVE_3).length, 1);
   assert.ok(!box.sent.includes(Cmd.RAISE), 'no step commands at all');
+  await desk.close();
+  await box.close();
+});
+
+test('a memory move can be stopped part way', async () => {
+  const { box, desk } = await ready(880);
+
+  const move = desk.moveToMemory(2); // 1204 mm, a long way up
+  await tick(400);
+  const partWay = box.heightMm;
+  desk.stop();
+
+  assert.equal(await move, 'superseded');
+  await tick(500);
+  assert.ok(box.heightMm < 1100, `stopped at ${box.heightMm}, nowhere near 1204`);
+  assert.ok(box.heightMm >= partWay - 1, 'and did not jump backwards');
+  // The cancel is a step command in the direction of travel.
+  assert.ok(box.sent.includes(Cmd.RAISE), 'a RAISE was used to cancel');
+  assert.ok(!box.sent.includes(Cmd.LOWER), 'never the opposite direction');
+
+  await desk.close();
+  await box.close();
+});
+
+test('a new target cancels a memory move rather than racing it', async () => {
+  const { box, desk } = await ready(880);
+
+  const first = desk.moveToMemory(2); // up towards 1204
+  await tick(400);
+  const second = desk.moveToMemory(1); // 801, the other way
+
+  assert.equal(await first, 'superseded');
+  assert.equal(await second, 'arrived');
+  assert.equal(Math.round(box.heightMm), 801);
+
   await desk.close();
   await box.close();
 });
