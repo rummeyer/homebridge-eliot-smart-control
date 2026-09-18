@@ -26,6 +26,20 @@ Your desk appears in the Home app as a **window covering**, with a slider from
 - **Automations**: stand up for the morning meeting, sit down at the end of the
   day.
 
+Alongside it, **the desk's own memory positions as switches** — the ones behind
+the buttons on the handset. Press one and the desk goes there; the switch
+springs back, the way a scene does.
+
+Only memories the desk actually has appear. An unset one reports as zero, which
+is not a height anything could be at, so no button is offered for it. Set one on
+the handset and it shows up the next time the plugin connects.
+
+These take a different route from the slider, and a better one: the control box
+has a *go to memory* command of its own, so the desk runs its own ramp and eases
+into the position, stopping within a couple of millimetres. The slider has no
+such luxury — there is no *go to height X* in the protocol — so it is driven
+step by step from here.
+
 A covering rather than a light, deliberately. A light would join in with "turn
 off all the lights" and with every bedtime scene — and off, for a desk, means
 driving down to its lowest setting.
@@ -101,7 +115,8 @@ and the address from step 1. Or in `config.json`:
   "desks": [
     {
       "name": "Schreibtisch",
-      "mac": "E5:02:4F:BF:74:A2"
+      "mac": "E5:02:4F:BF:74:A2",
+      "memoryNames": ["Sitzen", "Stehen", "Besprechung"]
     }
   ]
 }
@@ -112,6 +127,8 @@ and the address from step 1. Or in `config.json`:
 | `name` | required | What the desk is called in the Home app |
 | `mac` | required | Bluetooth address of the Smart Dongle |
 | `idlePollSeconds` | default 30 | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
+| `memorySwitches` | default on | Offer the desk's memory positions as switches |
+| `memoryNames` | optional | What to call them, in order. Defaults to *Memory 1* … *Memory 4* |
 
 Then scan the child bridge's QR code in the Home app.
 
@@ -129,6 +146,10 @@ be moving forever.
 **There is no stop button in the protocol.** The desk moves because the plugin
 keeps telling it to, and stops when that stops — so a stop still coasts the
 same ~18 mm any move does.
+
+**A memory move cannot be called off at all.** Once the command is sent the
+control box drives itself, and there is nothing to withhold. Stopping it means
+reaching for the handset.
 
 **The desk's own safety features still apply.** Anti-collision and the soft
 limits live in the control box and are untouched by this plugin, which adds its
