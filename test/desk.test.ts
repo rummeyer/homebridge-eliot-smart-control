@@ -1,6 +1,7 @@
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import type { TestContext } from 'node:test';
 
 import { Desk } from '../src/eliot/desk.ts';
 import type { Transport } from '../src/eliot/desk.ts';
@@ -12,6 +13,20 @@ const MAX = 1280;
 
 const silent = { debug() {}, info() {}, warn() {}, error() {} };
 const tick = (ms = 0) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/**
+ * Hold the event loop open for as long as this file runs.
+ *
+ * Everything the fake desk and the plugin schedule is unref'd — rightly, since
+ * neither should keep Homebridge alive — which leaves stretches where a test
+ * is awaiting a move and nothing else is pending. Node then decides the run is
+ * finished and cancels the rest, reported as `Promise resolution is still
+ * pending but the event loop has already resolved`. Ref'ing the fake's timers
+ * instead would fix that and reintroduce the opposite fault, where one stray
+ * fake hangs the whole run.
+ */
+const keepAlive = setInterval(() => {}, 1000);
+after(() => clearInterval(keepAlive));
 
 /** Build the report frame the control box would send. */
 function report(command: number, params: number[]): Frame {
@@ -43,7 +58,8 @@ class FakeDesk extends EventEmitter implements Transport {
   constructor(startMm = 880) {
     super();
     this.heightMm = startMm;
-    // unref: a test that fails before close() must not hold the process open.
+    // unref'd throughout, so a stray fake can never hold the run open.
+    // Keeping the loop busy is the keepAlive below's job, not theirs.
     this.#mover = setInterval(() => this.#advance(), 20);
     this.#mover.unref();
     this.#reporter = setInterval(() => {
@@ -184,17 +200,25 @@ class FakeDesk extends EventEmitter implements Transport {
   }
 }
 
-/** Bring a desk up with its state loaded, the way a real connect does. */
-async function ready(startMm = 880) {
+/**
+ * Bring a desk up with its state loaded, the way a real connect does.
+ *
+ * Takes the test context so cleanup is registered rather than left to the end
+ * of the body, where a failed assertion would skip it and leave the fake's
+ * timers running.
+ */
+async function ready(t: TestContext, startMm = 880) {
   const box = new FakeDesk(startMm);
   const desk = new Desk(box, silent, { idlePollMs: 0 });
+  t.after(async () => {
+  });
   await desk.start();
   await tick(1400);
   return { box, desk };
 }
 
-test('connecting loads height, limits and the lock state', async () => {
-  const { box, desk } = await ready();
+test('connecting loads height, limits and the lock state', async (t) => {
+  const { box, desk } = await ready(t);
 
   assert.equal(desk.state.connected, true);
   assert.equal(desk.state.ready, true);
@@ -203,13 +227,15 @@ test('connecting loads height, limits and the lock state', async () => {
   assert.equal(desk.minMm, MIN);
   assert.equal(desk.maxMm, MAX);
   assert.equal(desk.state.position, 31);
-  await desk.close();
-  await box.close();
 });
 
-test('nothing is published as ready before the limits arrive', async () => {
+test('nothing is published as ready before the limits arrive', async (t) => {
   const box = new FakeDesk(880);
   const desk = new Desk(box, silent, { idlePollMs: 0 });
+  t.after(async () => {
+    await desk.close();
+    await box.close();
+  });
   const seen: boolean[] = [];
   desk.on('change', (s) => seen.push(s.ready));
 
@@ -221,24 +247,20 @@ test('nothing is published as ready before the limits arrive', async () => {
   assert.equal(desk.state.ready, true);
   assert.ok(!seen.slice(0, -1).every(Boolean), 'and it was not ready from the start');
 
-  await desk.close();
-  await box.close();
 });
 
-test('a dropped link makes the state untrustworthy again', async () => {
-  const { box, desk } = await ready(880);
+test('a dropped link makes the state untrustworthy again', async (t) => {
+  const { box, desk } = await ready(t, 880);
   assert.equal(desk.state.ready, true);
 
   box.drop();
   await tick(20);
 
   assert.equal(desk.state.ready, false, 'the desk can be moved by hand while away');
-  await desk.close();
-  await box.close();
 });
 
-test('a move hands the height to the control box and lands on it', async () => {
-  const { box, desk } = await ready(880);
+test('a move hands the height to the control box and lands on it', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const outcome = await desk.moveTo(60);
 
@@ -249,22 +271,18 @@ test('a move hands the height to the control box and lands on it', async () => {
   assert.ok(box.sent.includes(Cmd.GOTO_HEIGHT), 'used the native command');
   assert.ok(!box.sent.includes(Cmd.RAISE), 'and no step commands at all');
   assert.ok(!box.sent.includes(Cmd.LOWER));
-  await desk.close();
-  await box.close();
 });
 
-test('a lower target goes down, still in one command', async () => {
-  const { box, desk } = await ready(1100);
+test('a lower target goes down, still in one command', async (t) => {
+  const { box, desk } = await ready(t, 1100);
 
   assert.equal(await desk.moveTo(20), 'arrived');
   assert.ok(box.heightMm < 1100);
   assert.equal(box.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length, 1);
-  await desk.close();
-  await box.close();
 });
 
-test('a control box that ignores GOTO_HEIGHT is driven by hand instead', async () => {
-  const { box, desk } = await ready(880);
+test('a control box that ignores GOTO_HEIGHT is driven by hand instead', async (t) => {
+  const { box, desk } = await ready(t, 880);
   box.knowsGotoHeight = false;
 
   const outcome = await desk.moveTo(60);
@@ -274,12 +292,10 @@ test('a control box that ignores GOTO_HEIGHT is driven by hand instead', async (
   assert.ok(box.sent.includes(Cmd.RAISE), 'and step commands took over');
   await tick(400);
   assert.ok(Math.abs(box.heightMm - 1048) < 30, `landed at ${box.heightMm}`);
-  await desk.close();
-  await box.close();
 });
 
-test('a new target supersedes the one in flight', async () => {
-  const { box, desk } = await ready(880);
+test('a new target supersedes the one in flight', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const first = desk.moveTo(90);
   await tick(300);
@@ -287,12 +303,10 @@ test('a new target supersedes the one in flight', async () => {
 
   assert.equal(await first, 'superseded');
   assert.equal(await second, 'arrived');
-  await desk.close();
-  await box.close();
 });
 
-test('stop sends the stop command and the desk halts', async () => {
-  const { box, desk } = await ready(880);
+test('stop sends the stop command and the desk halts', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const move = desk.moveTo(100);
   await tick(400);
@@ -305,21 +319,17 @@ test('stop sends the stop command and the desk halts', async () => {
   assert.ok(box.heightMm < 1280, `stopped at ${box.heightMm}, short of the top`);
   assert.ok(box.heightMm >= partWay - 1, 'and did not jump backwards');
   assert.equal(desk.state.moving, null);
-  await desk.close();
-  await box.close();
 });
 
-test('a blocked desk ends the move as stalled', async () => {
-  const { box, desk } = await ready(880);
+test('a blocked desk ends the move as stalled', async (t) => {
+  const { box, desk } = await ready(t, 880);
   box.blocked = true;
 
   assert.equal(await desk.moveTo(100), 'stalled');
-  await desk.close();
-  await box.close();
 });
 
-test('losing the link mid-move ends it as disconnected', async () => {
-  const { box, desk } = await ready(880);
+test('losing the link mid-move ends it as disconnected', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const move = desk.moveTo(100);
   await tick(300);
@@ -327,12 +337,10 @@ test('losing the link mid-move ends it as disconnected', async () => {
 
   assert.equal(await move, 'disconnected');
   assert.equal(desk.state.connected, false);
-  await desk.close();
-  await box.close();
 });
 
-test('measurement noise is not mistaken for somebody at the handset', async () => {
-  const { box, desk } = await ready(880);
+test('measurement noise is not mistaken for somebody at the handset', async (t) => {
+  const { box, desk } = await ready(t, 880);
   const target = desk.state.target;
 
   // What the control box actually does on a desk nobody is touching: the
@@ -343,12 +351,10 @@ test('measurement noise is not mistaken for somebody at the handset', async () =
   }
 
   assert.equal(desk.state.target, target, 'the target must not drift with the noise');
-  await desk.close();
-  await box.close();
 });
 
-test('a slow handset move is caught even in steps below the threshold', async () => {
-  const { box, desk } = await ready(880);
+test('a slow handset move is caught even in steps below the threshold', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   // Comparing consecutive readings would miss this entirely: no single step
   // reaches the threshold, but the desk ends up 100 mm higher.
@@ -359,12 +365,10 @@ test('a slow handset move is caught even in steps below the threshold', async ()
 
   assert.equal(desk.state.heightMm, 980);
   assert.equal(desk.state.target, desk.state.position, 'the target followed it up');
-  await desk.close();
-  await box.close();
 });
 
-test('the handset moving the desk updates the target too', async () => {
-  const { box, desk } = await ready(880);
+test('the handset moving the desk updates the target too', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   box.handset(1048);
   await tick(50);
@@ -373,12 +377,10 @@ test('the handset moving the desk updates the target too', async () => {
   assert.equal(desk.state.position, 60);
   // Crucially the target follows, so nothing tries to drive it back.
   assert.equal(desk.state.target, 60);
-  await desk.close();
-  await box.close();
 });
 
-test('a successful move keeps the target that was asked for', async () => {
-  const { box, desk } = await ready(880);
+test('a successful move keeps the target that was asked for', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   assert.equal(await desk.moveTo(60), 'arrived');
   assert.equal(desk.state.target, 60, 'the request must survive its own success');
@@ -388,23 +390,19 @@ test('a successful move keeps the target that was asked for', async () => {
   await tick(50);
   assert.equal(desk.state.target, 60, 'coasting must not drag the target along');
 
-  await desk.close();
-  await box.close();
 });
 
-test('a failed move gives up the target instead of pretending', async () => {
-  const { box, desk } = await ready(880);
+test('a failed move gives up the target instead of pretending', async (t) => {
+  const { box, desk } = await ready(t, 880);
   box.blocked = true;
 
   assert.equal(await desk.moveTo(100), 'stalled');
   assert.equal(desk.state.target, desk.state.position, 'not still heading for 100%');
 
-  await desk.close();
-  await box.close();
 });
 
-test('the handset is still noticed once the settling window has passed', async () => {
-  const { box, desk } = await ready(880);
+test('the handset is still noticed once the settling window has passed', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   assert.equal(await desk.moveTo(60), 'arrived');
   await tick(3100);
@@ -414,12 +412,10 @@ test('the handset is still noticed once the settling window has passed', async (
   assert.equal(desk.state.position, 10);
   assert.equal(desk.state.target, 10, 'a real handset move does move the target');
 
-  await desk.close();
-  await box.close();
 });
 
-test('locking and unlocking the desk works and reports back', async () => {
-  const { box, desk } = await ready(880);
+test('locking and unlocking the desk works and reports back', async (t) => {
+  const { box, desk } = await ready(t, 880);
   assert.equal(desk.state.locked, false);
 
   assert.equal(await desk.setLocked(true), true);
@@ -430,12 +426,10 @@ test('locking and unlocking the desk works and reports back', async () => {
   assert.equal(box.locked, false);
   assert.equal(desk.state.locked, false);
 
-  await desk.close();
-  await box.close();
 });
 
-test('asking for the state it is already in sends nothing', async () => {
-  const { box, desk } = await ready(880);
+test('asking for the state it is already in sends nothing', async (t) => {
+  const { box, desk } = await ready(t, 880);
   const before = box.sent.filter((c) => c === Cmd.LOCK).length;
 
   // The control box offers a toggle, not a setting. Sending it anyway would
@@ -444,32 +438,26 @@ test('asking for the state it is already in sends nothing', async () => {
 
   assert.equal(box.sent.filter((c) => c === Cmd.LOCK).length, before);
   assert.equal(box.locked, false);
-  await desk.close();
-  await box.close();
 });
 
-test('a dropped link forgets the lock state rather than guessing', async () => {
-  const { box, desk } = await ready(880);
+test('a dropped link forgets the lock state rather than guessing', async (t) => {
+  const { box, desk } = await ready(t, 880);
   assert.equal(desk.state.locked, false);
 
   box.drop();
   await tick(20);
 
   assert.equal(desk.state.locked, null, 'it can be locked at the handset while away');
-  await desk.close();
-  await box.close();
 });
 
-test('the memory positions are read from the desk, unset ones as null', async () => {
-  const { box, desk } = await ready(880);
+test('the memory positions are read from the desk, unset ones as null', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   assert.deepEqual(desk.state.memories, [801, 1204, 1000, null]);
-  await desk.close();
-  await box.close();
 });
 
-test('a memory move sends one command and lets the control box drive', async () => {
-  const { box, desk } = await ready(880);
+test('a memory move sends one command and lets the control box drive', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const outcome = await desk.moveToMemory(3);
 
@@ -478,12 +466,10 @@ test('a memory move sends one command and lets the control box drive', async () 
   // One command, not a stream of steps: the box has its own ramp.
   assert.equal(box.sent.filter((c) => c === Cmd.MOVE_3).length, 1);
   assert.ok(!box.sent.includes(Cmd.RAISE), 'no step commands at all');
-  await desk.close();
-  await box.close();
 });
 
-test('a memory move can be stopped part way', async () => {
-  const { box, desk } = await ready(880);
+test('a memory move can be stopped part way', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const move = desk.moveToMemory(2); // 1204 mm, a long way up
   await tick(400);
@@ -500,12 +486,10 @@ test('a memory move can be stopped part way', async () => {
   assert.ok(box.sent.includes(Cmd.RAISE), 'with a step command behind it');
   assert.ok(!box.sent.includes(Cmd.LOWER), 'never the opposite direction');
 
-  await desk.close();
-  await box.close();
 });
 
-test('a new target cancels a memory move rather than racing it', async () => {
-  const { box, desk } = await ready(880);
+test('a new target cancels a memory move rather than racing it', async (t) => {
+  const { box, desk } = await ready(t, 880);
 
   const first = desk.moveToMemory(2); // up towards 1204
   await tick(400);
@@ -515,40 +499,37 @@ test('a new target cancels a memory move rather than racing it', async () => {
   assert.equal(await second, 'arrived');
   assert.equal(Math.round(box.heightMm), 801);
 
-  await desk.close();
-  await box.close();
 });
 
-test('an unset memory is refused rather than driving to zero', async () => {
-  const { box, desk } = await ready(880);
+test('an unset memory is refused rather than driving to zero', async (t) => {
+  const { box, desk } = await ready(t, 880);
   const before = box.sent.length;
 
   assert.equal(await desk.moveToMemory(4), 'refused');
   assert.equal(box.sent.length, before, 'and nothing was sent');
-  await desk.close();
-  await box.close();
 });
 
-test('a memory move that goes nowhere ends as stalled', async () => {
-  const { box, desk } = await ready(880);
+test('a memory move that goes nowhere ends as stalled', async (t) => {
+  const { box, desk } = await ready(t, 880);
   box.blocked = true;
 
   assert.equal(await desk.moveToMemory(2), 'stalled');
-  await desk.close();
-  await box.close();
 });
 
-test('moving before the desk has reported is refused, not guessed', async () => {
+test('moving before the desk has reported is refused, not guessed', async (t) => {
   const box = new FakeDesk(880);
   const desk = new Desk(box, silent, { idlePollMs: 0 });
+  t.after(async () => {
+    await desk.close();
+    await box.close();
+  });
 
   assert.equal(await desk.moveTo(50), 'refused');
   assert.deepEqual(box.sent, [], 'and sends nothing');
-  await box.close();
 });
 
-test('clearing a soft limit falls back to the physical range', async () => {
-  const { box, desk } = await ready(880);
+test('clearing a soft limit falls back to the physical range', async (t) => {
+  const { box, desk } = await ready(t, 880);
   assert.equal(desk.maxMm, MAX);
 
   box.emit('frame', report(Report.LIMIT_FLAGS, [0x10]));
@@ -556,17 +537,13 @@ test('clearing a soft limit falls back to the physical range', async () => {
 
   assert.equal(desk.maxMm, 1285, 'stale soft maximum must not linger');
   assert.equal(desk.minMm, MIN);
-  await desk.close();
-  await box.close();
 });
 
-test('a write that cannot be delivered ends the move at once', async () => {
-  const { box, desk } = await ready(880);
+test('a write that cannot be delivered ends the move at once', async (t) => {
+  const { box, desk } = await ready(t, 880);
   box.failWrites = true;
 
   // The destination is a single awaited write now, so a dead link is known
   // immediately rather than inferred a few seconds later from silence.
   assert.equal(await desk.moveTo(100), 'disconnected');
-  await desk.close();
-  await box.close();
 });

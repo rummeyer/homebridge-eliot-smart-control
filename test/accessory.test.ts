@@ -9,7 +9,8 @@
  */
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
-import { test } from 'node:test';
+import { after, test } from 'node:test';
+import type { TestContext } from 'node:test';
 
 import { EliotAccessory } from '../src/accessory.ts';
 import type { Transport } from '../src/eliot/desk.ts';
@@ -17,6 +18,10 @@ import { Cmd, Report } from '../src/eliot/protocol.ts';
 import type { Frame } from '../src/eliot/protocol.ts';
 
 const tick = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+/** See the note in desk.test.ts: unref'd timers alone let the run end early. */
+const keepAlive = setInterval(() => {}, 1000);
+after(() => clearInterval(keepAlive));
 const be = (mm: number) => [(mm >> 8) & 0xff, mm & 0xff];
 const frame = (command: number, params: number[]): Frame => ({
   address: 0xf2,
@@ -137,19 +142,25 @@ const platform = {
 
 const config = { name: 'Schreibtisch', mac: 'E5:11:22:33:44:55' };
 
-/** Build an accessory over a fake desk and let its startup exchange finish. */
-async function start(accessory: FakeAccessory) {
+/**
+ * Build an accessory over a fake desk and let its startup exchange finish.
+ *
+ * Cleanup goes through the test context so it happens even when an assertion
+ * fails part way through.
+ */
+async function start(t: TestContext, accessory: FakeAccessory) {
   const transport = new FakeTransport();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
+  t.after(() => handle.stop());
   await handle.start();
   await tick(1500);
   return { handle, transport };
 }
 
-test('a fresh accessory gets a switch per set memory, wired up', async () => {
+test('a fresh accessory gets a switch per set memory, wired up', async (t) => {
   const accessory = new FakeAccessory();
-  const { handle } = await start(accessory);
+  await start(t, accessory);
 
   const switches = accessory.services.filter((s) => s.kind === 'Switch' && s.subtype !== 'childlock');
   assert.deepEqual(
@@ -163,17 +174,16 @@ test('a fresh accessory gets a switch per set memory, wired up', async () => {
     assert.equal(typeof on.handlers.set, 'function', `${service.subtype} has a setter`);
   }
 
-  await handle.stop();
 });
 
-test('a switch restored from the cache is wired up again, not just adopted', async () => {
+test('a switch restored from the cache is wired up again, not just adopted', async (t) => {
   // What Homebridge hands back after a restart: the service, without handlers.
   const accessory = new FakeAccessory();
   for (const slot of [1, 2, 3]) {
     accessory.addService('Switch', `Schreibtisch Memory ${slot}`, `memory${slot}`);
   }
 
-  const { handle } = await start(accessory);
+  await start(t, accessory);
 
   const switches = accessory.services.filter((s) => s.kind === 'Switch' && s.subtype !== 'childlock');
   assert.equal(switches.length, 3, 'reused, not duplicated');
@@ -186,14 +196,13 @@ test('a switch restored from the cache is wired up again, not just adopted', asy
     );
   }
 
-  await handle.stop();
 });
 
-test('pressing a restored switch actually moves the desk', async () => {
+test('pressing a restored switch actually moves the desk', async (t) => {
   const accessory = new FakeAccessory();
   accessory.addService('Switch', 'Schreibtisch Memory 2', 'memory2');
 
-  const { handle, transport } = await start(accessory);
+  const { transport } = await start(t, accessory);
 
   const on = accessory.getServiceById('Switch', 'memory2')!.getCharacteristic('On');
   await (on.handlers.set as (v: unknown) => unknown)(true);
@@ -201,12 +210,11 @@ test('pressing a restored switch actually moves the desk', async () => {
 
   assert.ok(transport.sent.includes(Cmd.MOVE_2), 'the memory command was sent');
 
-  await handle.stop();
 });
 
-test('the child lock is a stateful switch, on from the start', async () => {
+test('the child lock is a stateful switch, on from the start', async (t) => {
   const accessory = new FakeAccessory();
-  const { handle, transport } = await start(accessory);
+  const { transport } = await start(t, accessory);
 
   const service = accessory.getServiceById('Switch', 'childlock');
   assert.ok(service, 'the switch exists without waiting for the desk');
@@ -219,15 +227,14 @@ test('the child lock is a stateful switch, on from the start', async () => {
   assert.equal(transport.locked, true, 'the desk actually locked');
   assert.equal(await (on.handlers.get as () => unknown)(), true);
 
-  await handle.stop();
 });
 
-test('a switch for a memory the desk no longer has is taken away', async () => {
+test('a switch for a memory the desk no longer has is taken away', async (t) => {
   const accessory = new FakeAccessory();
   // Memory 4 is unset on this desk; a stale button must not survive.
   accessory.addService('Switch', 'Schreibtisch Memory 4', 'memory4');
 
-  const { handle } = await start(accessory);
+  await start(t, accessory);
 
   assert.equal(accessory.getServiceById('Switch', 'memory4'), undefined);
   assert.equal(
@@ -235,5 +242,4 @@ test('a switch for a memory the desk no longer has is taken away', async () => {
     3,
   );
 
-  await handle.stop();
 });
