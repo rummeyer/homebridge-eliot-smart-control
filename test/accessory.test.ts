@@ -130,7 +130,7 @@ const platform = {
   log: { debug() {}, info() {}, warn() {}, error() {} },
 };
 
-const config = { name: 'Schreibtisch', mac: 'E5:02:4F:BF:74:A2' };
+const config = { name: 'Schreibtisch', mac: 'E5:11:22:33:44:55' };
 
 /** Build an accessory over a fake desk and let its startup exchange finish. */
 async function start(accessory: FakeAccessory) {

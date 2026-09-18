@@ -152,7 +152,7 @@ const fakeLog = {
   success: () => {},
 };
 
-const desk = { name: 'Schreibtisch', mac: 'E5:02:4F:BF:74:A2' };
+const desk = { name: 'Schreibtisch', mac: 'E5:11:22:33:44:55' };
 
 test('Homebridge can load the built entry point and register the platform', async () => {
   const namespace = await load('dist/index.js');

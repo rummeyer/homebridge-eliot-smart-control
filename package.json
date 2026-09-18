@@ -33,11 +33,14 @@
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
     "test": "npm run build && node --test test/*.test.ts",
-    "probe": "node tools/eliot-probe.js"
+    "probe": "node tools/eliot-probe.js",
+    "find-desks": "node tools/find-desks.js",
+    "prepare": "npm run build",
+    "prepublishOnly": "npm run clean && npm test"
   },
   "dependencies": {
-    "node-ble": "^1.13.0",
-    "@homebridge/plugin-ui-utils": "^2.2.6"
+    "@homebridge/plugin-ui-utils": "^2.2.6",
+    "node-ble": "^1.13.0"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
@@ -51,8 +54,10 @@
     "docs",
     "config.schema.json",
     "README.md",
+    "CHANGELOG.md",
     "LICENSE"
   ],
   "homepage": "https://github.com/rummeyer/homebridge-eliot-smart-control#readme",
-  "type": "module"
+  "type": "module",
+  "funding": "https://github.com/sponsors/rummeyer"
 }

@@ -68,46 +68,51 @@ container, the host's `/var/run/dbus/system_bus_socket` must be mounted.
 While Homebridge holds it, the Eliot app on your phone cannot connect, and
 vice versa — if the app is connected, this plugin will not get in.
 
-## Step 1 — Find the dongle's address
-
-This is the fiddly part, because the dongle does not announce itself usefully:
-it advertises as **`Schreibtisch`**, with no manufacturer name and no
-recognisable service. Some units have the address on a sticker or in the QR
-code; many do not.
-
-On the Homebridge host:
-
-```bash
-npm install node-ble
-node tools/eliot-probe.js scan
-```
-
-Look for `Schreibtisch` in the list and note its address. If it is not there,
-the dongle is either connected to a phone already or not powered — see
-[Troubleshooting](#troubleshooting).
-
-You can check that you have the right one before going any further. This reads
-the desk's height, limits and memory positions and **does not move it**:
-
-```bash
-node tools/eliot-probe.js ask E5:02:4F:BF:74:A2
-```
-
-## Step 2 — Install the plugin
+## Step 1 — Install the plugin
 
 In the Homebridge UI, go to **Plugins**, search for
 `homebridge-eliot-smart-control` and choose **Install**.
 
-## Step 3 — Give it a child bridge
+## Step 2 — Give it a child bridge
 
 In the plugin's **⋮** menu, choose **Bridge Settings** and turn the child bridge
 on. Bluetooth links drop and reconnect; in a child bridge that churn stays in
 its own process instead of unsettling your other accessories.
 
-## Step 4 — Configure it
+## Step 3 — Find your desk
 
-In the plugin's **Settings**, add a desk with the name you want in the Home app
-and the address from step 1. Or in `config.json`:
+Open the plugin's **Settings** and press **Scan for desks**.
+
+This is the fiddly part done for you. The dongle does not announce itself
+usefully: it advertises as **`Schreibtisch`**, with no manufacturer name, and
+many units have no address printed on them — in a scan list it sits among forty
+anonymous phones with nothing to tell them apart. The page looks for the
+Bluetooth service the desk actually speaks, so a result marked *confirmed* is
+the right device rather than a good guess.
+
+Press **Use this** next to yours, give it a name, and save.
+
+If nothing turns up, the usual cause is that something else has it: the dongle
+takes one connection at a time, so close the Eliot app and turn Bluetooth off
+on any phone that has been paired with the desk. Then unplug the dongle for
+five seconds.
+
+The same thing is available from the command line, in the plugin's directory:
+
+```bash
+node tools/find-desks.js
+```
+
+And this reads the desk's height, limits and memory positions to prove you have
+the right one. It **does not move it**:
+
+```bash
+node tools/eliot-probe.js ask E5:11:22:33:44:55
+```
+
+## Step 4 — Or configure it by hand
+
+In `config.json`:
 
 ```json
 {
@@ -115,7 +120,7 @@ and the address from step 1. Or in `config.json`:
   "desks": [
     {
       "name": "Schreibtisch",
-      "mac": "E5:02:4F:BF:74:A2",
+      "mac": "E5:11:22:33:44:55",
       "memoryNames": ["Sitzen", "Stehen", "Besprechung"]
     }
   ]
@@ -130,7 +135,10 @@ and the address from step 1. Or in `config.json`:
 | `memorySwitches` | default on | Offer the desk's memory positions as switches |
 | `memoryNames` | optional | What to call them, in order. Defaults to *Memory 1* … *Memory 4* |
 
-Then scan the child bridge's QR code in the Home app.
+## Step 5 — Add it to the Home app
+
+The child bridge has its own QR code, under **Bridge Settings**. Scan it in the
+Home app the same way you paired Homebridge itself.
 
 ## Things worth knowing
 
@@ -172,9 +180,14 @@ enough to release the connection, and the dongle will not advertise while
 something is connected. Then unplug the dongle for five seconds and plug it
 back in; it advertises immediately on power-up.
 
-**It connects, then drops.** Check the signal. `tools/eliot-probe.js scan`
-prints the strength; anything around -90 dBm is at the edge of usable and will
-come and go. Move the Homebridge host closer, or put a second one near the desk.
+**It connects, then drops.** Check the signal — the settings page prints it
+beside each result, and warns when it is weak. Anything around -90 dBm is at
+the edge of usable and will come and go. Move the Homebridge host closer, or
+put a second one near the desk.
+
+A dongle that is silent while plugged in and powered is simply broken. That
+sounds obvious written down; in practice it is indistinguishable from a range
+problem, and worth ruling out early by trying another one.
 
 **"No D-Bus system bus"** means BlueZ is not reachable: you are not on Linux, or
 you are in a container without `/var/run/dbus/system_bus_socket` mounted.

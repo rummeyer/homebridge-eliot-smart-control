@@ -31,7 +31,7 @@
               "title": "Dongle address",
               "type": "string",
               "required": true,
-              "placeholder": "E5:02:4F:BF:74:A2",
+              "placeholder": "E5:11:22:33:44:55",
               "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
               "description": "Bluetooth address of the Smart Dongle."
             },

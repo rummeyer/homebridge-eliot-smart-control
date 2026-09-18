@@ -5,7 +5,7 @@ export interface DeskConfig {
   /** Display name in HomeKit. */
   name: string;
   /**
-   * BLE address of the Smart Dongle, e.g. `E5:02:4F:BF:74:A2`.
+   * BLE address of the Smart Dongle, e.g. `E5:11:22:33:44:55`.
    *
    * There is no printed address on some dongles and no vendor name in the
    * advertisement — it appears as `Schreibtisch`. `tools/eliot-probe.js scan`
@@ -56,7 +56,7 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
   }
   if (!desk.mac || !/^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$/.test(desk.mac)) {
     problems.push(
-      `${where}.mac must look like E5:02:4F:BF:74:A2 (got ${JSON.stringify(desk.mac)})`,
+      `${where}.mac must look like E5:11:22:33:44:55 (got ${JSON.stringify(desk.mac)})`,
     );
   }
   if (desk.memoryNames !== undefined && !Array.isArray(desk.memoryNames)) {
