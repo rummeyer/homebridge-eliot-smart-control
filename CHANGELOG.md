@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.0.0] — 2026-09-18
+
+First stable release. Everything in it has been verified against an Eliot
+desk with a Smart Dongle: the protocol, the travel measurements, and each
+command it sends.
+
+One thing has not been, and is worth stating plainly. The step-command
+fallback — for a control box that does not know *go to height* — has met no
+such control box. It is covered by tests and by nothing else.
+
 ## [0.5.0] — 2026-09-18
 
 ### Added
@@ -114,7 +124,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.5.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.0.0...HEAD
+[1.0.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.4.0...v0.5.0
 [0.4.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.3.1...v0.4.0
 [0.3.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.3.0...v0.3.1
