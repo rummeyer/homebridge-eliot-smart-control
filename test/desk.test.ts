@@ -48,6 +48,22 @@ class FakeDesk extends EventEmitter implements Transport {
     }, 150);
   }
 
+  /** What the control box does by itself after a memory command. */
+  #driveTo(target: number): void {
+    const step = () => {
+      const delta = target - this.heightMm;
+      if (Math.abs(delta) < 1) {
+        this.heightMm = target;
+        this.emit('frame', report(Report.HEIGHT, [...be(Math.round(this.heightMm)), 0x07]));
+        return;
+      }
+      this.heightMm += Math.sign(delta) * Math.min(Math.abs(delta), 8);
+      this.emit('frame', report(Report.HEIGHT, [...be(Math.round(this.heightMm)), 0x07]));
+      setTimeout(step, 30).unref?.();
+    };
+    setTimeout(step, 30).unref?.();
+  }
+
   #advance(): void {
     if (this.blocked || Date.now() - this.#lastPulse >= 900) {
       return;
@@ -67,6 +83,16 @@ class FakeDesk extends EventEmitter implements Transport {
     }
     if (command === Cmd.SETTINGS) {
       this.emit('frame', report(Report.HEIGHT, [...be(Math.round(this.heightMm)), 0x07]));
+      this.emit('frame', report(Report.POSITION_1, be(801)));
+      this.emit('frame', report(Report.POSITION_2, be(1204)));
+      this.emit('frame', report(Report.POSITION_3, be(1000)));
+      this.emit('frame', report(Report.POSITION_4, be(0)));
+    }
+    const memory = { [Cmd.MOVE_1]: 801, [Cmd.MOVE_2]: 1204, [Cmd.MOVE_3]: 1000 }[command];
+    if (memory !== undefined && !this.blocked) {
+      // The real control box runs its own ramp and reports as it goes; one
+      // command is all it needs.
+      this.#driveTo(memory);
     }
     if (command === Cmd.LIMITS) {
       this.emit('frame', report(Report.LIMIT_FLAGS, [0x11]));
@@ -313,6 +339,47 @@ test('the handset is still noticed once the settling window has passed', async (
   assert.equal(desk.state.position, 10);
   assert.equal(desk.state.target, 10, 'a real handset move does move the target');
 
+  await desk.close();
+  await box.close();
+});
+
+test('the memory positions are read from the desk, unset ones as null', async () => {
+  const { box, desk } = await ready(880);
+
+  assert.deepEqual(desk.state.memories, [801, 1204, 1000, null]);
+  await desk.close();
+  await box.close();
+});
+
+test('a memory move sends one command and lets the control box drive', async () => {
+  const { box, desk } = await ready(880);
+
+  const outcome = await desk.moveToMemory(3);
+
+  assert.equal(outcome, 'arrived');
+  assert.equal(Math.round(box.heightMm), 1000);
+  // One command, not a stream of steps: the box has its own ramp.
+  assert.equal(box.sent.filter((c) => c === Cmd.MOVE_3).length, 1);
+  assert.ok(!box.sent.includes(Cmd.RAISE), 'no step commands at all');
+  await desk.close();
+  await box.close();
+});
+
+test('an unset memory is refused rather than driving to zero', async () => {
+  const { box, desk } = await ready(880);
+  const before = box.sent.length;
+
+  assert.equal(await desk.moveToMemory(4), 'refused');
+  assert.equal(box.sent.length, before, 'and nothing was sent');
+  await desk.close();
+  await box.close();
+});
+
+test('a memory move that goes nowhere ends as stalled', async () => {
+  const { box, desk } = await ready(880);
+  box.blocked = true;
+
+  assert.equal(await desk.moveToMemory(2), 'stalled');
   await desk.close();
   await box.close();
 });

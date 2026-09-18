@@ -27,17 +27,27 @@ import type { EliotPlatform } from './platform.ts';
  */
 const SNAP_TOLERANCE_PERCENT = 3;
 
+/** The desk has four memory buttons; we mirror however many are in use. */
+const MEMORY_SLOTS = [1, 2, 3, 4];
+
+/** How long a momentary switch stays on before springing back. */
+const RELEASE_MS = 1_000;
+
 export class EliotAccessory {
   readonly #platform: EliotPlatform;
+  readonly #accessory: PlatformAccessory;
   readonly #config: DeskConfig;
   readonly #desk: Desk;
   readonly #service: Service;
 
   /** Position to report instead of the real one, after a successful move. */
   #snapTo: number | null = null;
+  /** Memory switches by slot, created lazily once the desk lists its memories. */
+  readonly #memoryServices = new Map<number, Service>();
 
   constructor(platform: EliotPlatform, accessory: PlatformAccessory, config: DeskConfig) {
     this.#platform = platform;
+    this.#accessory = accessory;
     this.#config = config;
 
     const { Characteristic, Service: HapService } = platform.api.hap;
@@ -57,6 +67,7 @@ export class EliotAccessory {
       accessory.getService(HapService.WindowCovering) ??
       accessory.addService(HapService.WindowCovering, config.name);
     this.#service.setCharacteristic(Characteristic.Name, config.name);
+    this.#service.setCharacteristic(Characteristic.ConfiguredName, config.name);
 
     this.#service
       .getCharacteristic(Characteristic.CurrentPosition)
@@ -79,7 +90,10 @@ export class EliotAccessory {
         }
       });
 
-    this.#desk.on('change', (state) => this.#publish(state));
+    this.#desk.on('change', (state) => {
+      this.#syncMemorySwitches(state);
+      this.#publish(state);
+    });
     this.#desk.on('move-end', (outcome) => this.#onMoveEnd(outcome));
   }
 
@@ -165,6 +179,93 @@ export class EliotAccessory {
     }
   }
 
+  /**
+   * Create a switch per memory position, once the desk has told us about them.
+   *
+   * They cannot be built in the constructor: which memories exist is something
+   * only the desk knows, and it says so a second or two after connecting. An
+   * accessory restored from Homebridge's cache may already carry the services
+   * from last time, which is why each one is looked up before being added.
+   */
+  #syncMemorySwitches(state: DeskState): void {
+    if (this.#config.memorySwitches === false || !state.ready) {
+      return;
+    }
+    const { Characteristic, Service: HapService } = this.#platform.api.hap;
+
+    for (const slot of MEMORY_SLOTS) {
+      const height = state.memories[slot - 1];
+      const subtype = `memory${slot}`;
+      const existing =
+        this.#memoryServices.get(slot) ??
+        this.#accessory.getServiceById(HapService.Switch, subtype) ??
+        undefined;
+
+      if (height == null) {
+        // The desk has no such preset — drop a switch left over from when it
+        // did, rather than leaving a button that cannot do anything.
+        if (existing) {
+          this.#accessory.removeService(existing);
+          this.#memoryServices.delete(slot);
+        }
+        continue;
+      }
+      if (existing) {
+        this.#memoryServices.set(slot, existing);
+        continue;
+      }
+
+      const label = this.#config.memoryNames?.[slot - 1] ?? `Memory ${slot}`;
+      const service = this.#accessory.addService(HapService.Switch, `${this.#config.name} ${label}`, subtype);
+      this.#name(service, label);
+      // Momentary, not stateful. What these are for is going somewhere, and a
+      // switch that stays on afterwards invites being switched off — which
+      // would have to mean something, and there is no opposite of having gone
+      // to a height. So it springs back, the way a scene does.
+      service
+        .getCharacteristic(Characteristic.On)
+        .onGet(() => false)
+        .onSet((value) => {
+          if (!value) {
+            return;
+          }
+          this.#setMemory(slot);
+          this.#release(service);
+        });
+      this.#memoryServices.set(slot, service);
+      this.#platform.log.info(`${this.#config.name}: memory ${slot} at ${height} mm`);
+    }
+  }
+
+  /** Name a service so the Home app shows it under its own name. */
+  #name(service: Service, label: string): void {
+    const { Characteristic } = this.#platform.api.hap;
+    const full = `${this.#config.name} ${label}`;
+    service.setCharacteristic(Characteristic.Name, full);
+    service.setCharacteristic(Characteristic.ConfiguredName, full);
+  }
+
+  /** Let a momentary switch fall back to off, the way a scene button does. */
+  #release(service: Service): void {
+    setTimeout(() => {
+      service.updateCharacteristic(this.#platform.api.hap.Characteristic.On, false);
+    }, RELEASE_MS).unref();
+  }
+
+  #setMemory(slot: number): void {
+    this.#snapTo = null;
+    void this.#desk
+      .moveToMemory(slot)
+      .then((outcome) => {
+        if (outcome !== 'arrived' && outcome !== 'superseded') {
+          this.#platform.log.warn(`${this.#config.name}: memory ${slot} ended as ${outcome}`);
+        }
+      })
+      .catch((error: unknown) => {
+        this.#platform.log.error(`${this.#config.name}: memory ${slot} failed: ${String(error)}`);
+      });
+  }
+
   #publish(state: DeskState): void {
     const { Characteristic } = this.#platform.api.hap;
 
@@ -180,5 +281,11 @@ export class EliotAccessory {
     this.#service.updateCharacteristic(Characteristic.CurrentPosition, current);
     this.#service.updateCharacteristic(Characteristic.TargetPosition, state.target ?? current);
     this.#service.updateCharacteristic(Characteristic.PositionState, this.#positionState());
+
+    // Momentary: they are never on except for the moment after a press, which
+    // #release already takes care of.
+    for (const service of this.#memoryServices.values()) {
+      service.updateCharacteristic(Characteristic.On, false);
+    }
   }
 }

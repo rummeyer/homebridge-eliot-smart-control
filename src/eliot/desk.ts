@@ -11,7 +11,7 @@ import { EventEmitter } from 'node:events';
 
 import type { LinkLogger } from './link.ts';
 import { MoveController, heightToPercent, percentToHeight } from './move.ts';
-import type { MoveOptions, MoveResult } from './move.ts';
+import type { Direction, MoveOptions, MoveResult } from './move.ts';
 import { Cmd, Report, readHeight } from './protocol.ts';
 import type { Frame } from './protocol.ts';
 
@@ -58,6 +58,14 @@ export interface DeskState {
   target: number | null;
   /** Which way the desk is going right now. */
   moving: 'up' | 'down' | null;
+  /**
+   * The four memory heights in millimetres, `null` where unset.
+   *
+   * These are the positions behind the handset's memory buttons. The control
+   * box drives to them itself, on its own ramp, so they are both more accurate
+   * and gentler than anything this plugin can do with step commands.
+   */
+  memories: (number | null)[];
 }
 
 export interface DeskOptions {
@@ -93,6 +101,10 @@ export interface DeskOptions {
   settleMs: number;
   /** Passed through to {@link MoveController}. */
   move: Partial<MoveOptions>;
+  /** A memory move is finished once the height has held still this long. */
+  nativeSettleMs: number;
+  /** How far off a memory height still counts as being at that preset. */
+  memoryToleranceMm: number;
 }
 
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
@@ -100,6 +112,8 @@ export const DEFAULT_DESK_OPTIONS: DeskOptions = {
   externalMoveMm: 15,
   settleMs: 3000,
   move: {},
+  nativeSettleMs: 1500,
+  memoryToleranceMm: 12,
 };
 
 /** How often the move loop wakes up. Well under `pulseMs`. */
@@ -124,10 +138,29 @@ export class Desk extends EventEmitter {
   /** Where the desk was last settled, for telling real movement from noise. */
   #restingMm: number | null = null;
 
+  #memories: (number | null)[] = [null, null, null, null];
+
   #move: {
     controller: MoveController;
     settle: (outcome: MoveOutcome) => void;
   } | null = null;
+
+  /**
+   * A move the control box is driving by itself, after a memory command.
+   *
+   * Nothing here steers it — the box has its own ramp and stops on its own.
+   * This only watches the height reports so the plugin knows when it is over
+   * and which way it went.
+   */
+  #native: {
+    target: number;
+    direction: Direction;
+    settle: (outcome: MoveOutcome) => void;
+    lastHeight: number;
+    lastChangeAt: number;
+    deadline: number;
+  } | null = null;
+  #nativeTimer: NodeJS.Timeout | null = null;
   #timer: NodeJS.Timeout | null = null;
   #poll: NodeJS.Timeout | null = null;
   /** Until when height changes are the tail of our own move, not somebody's. */
@@ -166,7 +199,8 @@ export class Desk extends EventEmitter {
       maxMm: max,
       position,
       target,
-      moving: this.#move?.controller.direction ?? null,
+      moving: this.#move?.controller.direction ?? this.#native?.direction ?? null,
+      memories: [...this.#memories],
     };
   }
 
@@ -188,6 +222,7 @@ export class Desk extends EventEmitter {
   async close(): Promise<void> {
     this.#closing = true;
     this.#endMove('disconnected');
+    this.#endNative('disconnected');
     this.#stopPolling();
     await this.#transport.close();
   }
@@ -248,6 +283,113 @@ export class Desk extends EventEmitter {
   }
 
   /**
+   * Drive to one of the desk's four memory positions, numbered 1 to 4.
+   *
+   * Sent as a single command and then left alone: the control box runs its own
+   * ramp, decelerating into the target and stopping within a couple of
+   * millimetres. That is better than this plugin can manage with step
+   * commands, so a preset is not simply {@link moveTo} with a stored height.
+   *
+   * The consequence is that the move cannot be called off once it has started
+   * — there is no command for that, and {@link stop} has nothing to withhold.
+   */
+  async moveToMemory(slot: number): Promise<MoveOutcome> {
+    const target = this.#memories[slot - 1];
+    if (target == null) {
+      this.#log.warn(`memory ${slot} is not set on this desk`);
+      return 'refused';
+    }
+    if (this.#heightMm === null || !this.#transport.connected) {
+      return this.#transport.connected ? 'refused' : 'disconnected';
+    }
+
+    const command = [Cmd.MOVE_1, Cmd.MOVE_2, Cmd.MOVE_3, Cmd.MOVE_4][slot - 1];
+    this.#endMove('superseded');
+    this.#endNative('superseded');
+
+    const from = this.#heightMm;
+    this.#targetMm = target;
+    this.#log.info(`memory ${slot}: ${from} → ${target} mm`);
+
+    const outcome = new Promise<MoveOutcome>((resolve) => {
+      const now = Date.now();
+      this.#native = {
+        target,
+        direction: target >= from ? 'up' : 'down',
+        settle: resolve,
+        lastHeight: from,
+        lastChangeAt: now,
+        // Generous: the box ramps, so it is slower than a flat-out step move.
+        deadline: now + (Math.abs(target - from) / 6) * 1000 + 10_000,
+      };
+    });
+
+    try {
+      await this.#transport.send(command);
+    } catch (error) {
+      this.#log.debug(`memory command failed: ${String(error)}`);
+      this.#endNative('disconnected');
+      return outcome;
+    }
+
+    this.#nativeTimer = setInterval(() => this.#watchNative(), 250);
+    this.#nativeTimer.unref();
+    this.#emitChange();
+    return outcome;
+  }
+
+  /** Decide whether a control-box-driven move has finished, or gone wrong. */
+  #watchNative(): void {
+    const native = this.#native;
+    if (!native) {
+      return;
+    }
+    if (!this.#transport.connected) {
+      this.#endNative('disconnected');
+      return;
+    }
+
+    const now = Date.now();
+    const height = this.#heightMm;
+    if (height !== null && height !== native.lastHeight) {
+      native.lastHeight = height;
+      native.lastChangeAt = now;
+    }
+
+    if (now > native.deadline) {
+      this.#endNative('timeout');
+      return;
+    }
+    // Still for long enough means it has stopped; whether that counts as
+    // arriving depends only on where it stopped.
+    if (now - native.lastChangeAt >= this.#opts.nativeSettleMs) {
+      const off = height === null ? Infinity : Math.abs(height - native.target);
+      this.#endNative(off <= this.#opts.memoryToleranceMm ? 'arrived' : 'stalled');
+    }
+  }
+
+  #endNative(outcome: MoveOutcome): void {
+    if (this.#nativeTimer) {
+      clearInterval(this.#nativeTimer);
+      this.#nativeTimer = null;
+    }
+    const native = this.#native;
+    if (!native) {
+      return;
+    }
+    this.#native = null;
+    this.#settleUntil = Date.now() + this.#opts.settleMs;
+    this.#restingMm = this.#heightMm;
+    if (outcome !== 'arrived') {
+      this.#targetMm = this.#heightMm;
+    }
+    this.#log.info(`memory move ended: ${outcome} at ${this.#heightMm} mm`);
+    native.settle(outcome);
+    this.emit('move-end', outcome);
+    this.#emitChange();
+  }
+
+  /**
    * Stop where it is.
    *
    * There is no stop command — the desk halts because we stop asking it to
@@ -255,6 +397,11 @@ export class Desk extends EventEmitter {
    * the end of any move.
    */
   stop(): void {
+    if (this.#native) {
+      // Nothing to withhold: the box is driving itself and the protocol has no
+      // way to call it back. Saying so beats silently doing nothing.
+      this.#log.warn('cannot stop a memory move — the control box finishes it by itself');
+    }
     if (this.#move) {
       this.#log.info('stopping');
       this.#endMove('superseded');
@@ -338,6 +485,19 @@ export class Desk extends EventEmitter {
         this.#softMin = readHeight(frame.params);
         this.#emitChange();
         return;
+      case Report.POSITION_1:
+      case Report.POSITION_2:
+      case Report.POSITION_3:
+      case Report.POSITION_4: {
+        const slot = frame.command - Report.POSITION_1;
+        // A memory the user has never set reads as zero, which is not a
+        // height the desk could ever be at. Store it as unset so nothing
+        // offers it as somewhere to go.
+        const mm = readHeight(frame.params);
+        this.#memories[slot] = mm > 0 ? mm : null;
+        this.#emitChange();
+        return;
+      }
       case Report.LIMIT_FLAGS: {
         // Bit 0 is the max limit, bit 4 the min. A limit that is not set means
         // the physical end of travel, so forget any stale value rather than
@@ -362,6 +522,13 @@ export class Desk extends EventEmitter {
 
     if (this.#move) {
       this.#move.controller.report(heightMm, Date.now());
+      this.#emitChange();
+      return;
+    }
+
+    if (this.#native) {
+      // The control box is driving. Watching is all we do; #watchNative reads
+      // the height from here on its own schedule.
       this.#emitChange();
       return;
     }
@@ -407,6 +574,7 @@ export class Desk extends EventEmitter {
     // trustworthy until it has been asked again.
     this.#refreshed = false;
     this.#endMove('disconnected');
+    this.#endNative('disconnected');
     this.#stopPolling();
     this.#emitChange();
   }

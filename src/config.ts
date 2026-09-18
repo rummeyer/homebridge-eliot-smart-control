@@ -20,6 +20,20 @@ export interface DeskConfig {
    * being moved while Homebridge was not connected.
    */
   idlePollSeconds?: number;
+  /**
+   * Expose the desk's memory positions as switches. On by default.
+   *
+   * Only positions the desk actually has are exposed — an unset memory reads
+   * as zero and is skipped.
+   */
+  memorySwitches?: boolean;
+  /**
+   * What to call each memory switch in the Home app, in order.
+   *
+   * Defaults to "<desk> Memory 1" and so on, matching the numbering on the
+   * handset. Give as many as you care to name; the rest fall back.
+   */
+  memoryNames?: string[];
 }
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -44,6 +58,9 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
     problems.push(
       `${where}.mac must look like E5:02:4F:BF:74:A2 (got ${JSON.stringify(desk.mac)})`,
     );
+  }
+  if (desk.memoryNames !== undefined && !Array.isArray(desk.memoryNames)) {
+    problems.push(`${where}.memoryNames must be a list of names`);
   }
   if (
     desk.idlePollSeconds !== undefined &&

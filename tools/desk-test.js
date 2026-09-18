@@ -24,6 +24,21 @@ const say = (m) => console.log(`${stamp()} ${m}`);
 const log = { debug: () => {}, info: (m) => say(`      ${m}`), warn: (m) => say(`WARN  ${m}`), error: (m) => say(`ERROR ${m}`) };
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * `start()` resolves after the first connect attempt, successful or not — the
+ * retry runs in the background. A tool that checks `connected` straight after
+ * therefore reports failure whenever the first attempt misses, which it often
+ * does when the dongle has just been released by something else.
+ */
+const waitConnected = (l, ms) =>
+  l.connected
+    ? Promise.resolve()
+    : new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        l.once('connected', () => { clearTimeout(timer); resolve(); });
+      });
+
+
 const link = new DeskLink(MAC, log);
 const desk = new Desk(link, log, { idlePollMs: 0 });
 
@@ -37,7 +52,8 @@ desk.on('change', (s) => {
 });
 
 await desk.start();
-await sleep(4000);
+await waitConnected(link, 60_000);
+await sleep(2500);
 
 if (!desk.state.connected || desk.state.position === null) {
   console.error('No usable state — is the Eliot app holding the dongle?');

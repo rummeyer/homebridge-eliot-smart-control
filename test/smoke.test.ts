@@ -70,11 +70,17 @@ class FakeAccessory {
     this.displayName = displayName;
     this.UUID = uuid;
   }
-  getService(kind: string) {
-    return this.services.find((s) => s.kind === kind);
+  getService(kind: unknown) {
+    return this.services.find((s) => s.kind === String(kind));
   }
-  addService(kind: string, displayName?: string, subtype?: string) {
-    const service = new FakeService(kind, displayName, subtype);
+  getServiceById(kind: unknown, subtype: string) {
+    return this.services.find((s) => s.kind === String(kind) && s.subtype === subtype);
+  }
+  removeService(service: FakeService) {
+    this.services = this.services.filter((s) => s !== service);
+  }
+  addService(kind: unknown, displayName?: string, subtype?: string) {
+    const service = new FakeService(String(kind), displayName, subtype);
     this.services.push(service);
     return service;
   }
@@ -228,6 +234,24 @@ test('the covering offers the controls a desk actually needs', async () => {
   const covering = (registered.registered[0]![0] as FakeAccessory).getService('WindowCovering')!;
   assert.ok(covering.getCharacteristic('TargetPosition').handlers.set, 'settable target');
   assert.ok(covering.getCharacteristic('HoldPosition').handlers.set, 'a stop control');
+
+  api.emit('shutdown');
+  await settle();
+});
+
+test('the presets are momentary switches, named in their own right', async () => {
+  const { EliotPlatform } = await load('dist/platform.js');
+  const { api, registered } = fakeApi();
+
+  new EliotPlatform(fakeLog, { platform: 'x', desks: [desk] }, api);
+  api.emit('didFinishLaunching');
+  await settle();
+
+  const accessory = registered.registered[0]![0] as FakeAccessory;
+  // No desk answers here, so no memories are known and no switches appear.
+  // What matters is that nothing was created speculatively.
+  const switches = accessory.services.filter((s) => s.kind === 'Switch');
+  assert.deepEqual(switches, [], 'no preset switches before the desk lists its memories');
 
   api.emit('shutdown');
   await settle();

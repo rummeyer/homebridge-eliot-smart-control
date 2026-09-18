@@ -51,6 +51,21 @@ function describe(frame) {
 
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 
+/**
+ * `start()` resolves after the first connect attempt, successful or not — the
+ * retry runs in the background. A tool that checks `connected` straight after
+ * therefore reports failure whenever the first attempt misses, which it often
+ * does when the dongle has just been released by something else.
+ */
+const waitConnected = (l, ms) =>
+  l.connected
+    ? Promise.resolve()
+    : new Promise((resolve) => {
+        const timer = setTimeout(resolve, ms);
+        l.once('connected', () => { clearTimeout(timer); resolve(); });
+      });
+
+
 const link = new DeskLink(MAC, log);
 let frames = 0;
 link.on('frame', (frame) => {
@@ -59,6 +74,7 @@ link.on('frame', (frame) => {
 });
 
 await link.start();
+await waitConnected(link, 60_000);
 
 if (!link.connected) {
   console.error('\nNever connected. Is the Eliot app holding the dongle?');

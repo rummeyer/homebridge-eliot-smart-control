@@ -41,6 +41,21 @@
               "default": 30,
               "minimum": 0,
               "description": "How often to ask a standing desk for its height. The desk reports by itself while moving, so this only catches the handset being used. 0 turns it off."
+            },
+            "memorySwitches": {
+              "title": "Memory-Schalter",
+              "type": "boolean",
+              "default": true,
+              "description": "Die Speicherplätze des Tisches als Schalter anbieten. Sie springen nach dem Drücken zurück, wie eine Szene. Nur belegte Plätze erscheinen."
+            },
+            "memoryNames": {
+              "title": "Namen der Memory-Schalter",
+              "type": "array",
+              "items": {
+                "type": "string",
+                "title": "Name"
+              },
+              "description": "Optionale Namen für Memory 1 bis 4, in dieser Reihenfolge. Leer lassen für \"Memory 1\", \"Memory 2\" und so weiter."
             }
           }
         }
@@ -48,13 +63,29 @@
     }
   },
   "layout": [
-    { "key": "name" },
+    {
+      "key": "name"
+    },
     {
       "key": "desks",
       "type": "array",
       "orderable": false,
       "buttonText": "Add desk",
-      "items": ["desks[].name", "desks[].mac", "desks[].idlePollSeconds"]
+      "items": [
+        "desks[].name",
+        "desks[].mac",
+        "desks[].idlePollSeconds",
+        "desks[].memorySwitches",
+        {
+          "key": "desks[].memoryNames",
+          "type": "array",
+          "orderable": false,
+          "buttonText": "Namen hinzufügen",
+          "items": [
+            "desks[].memoryNames[]"
+          ]
+        }
+      ]
     }
   ]
 }
