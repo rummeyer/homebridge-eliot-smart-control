@@ -12,7 +12,7 @@ import { EventEmitter } from 'node:events';
 import type { LinkLogger } from './link.ts';
 import { MoveController, heightToPercent, percentToHeight } from './move.ts';
 import type { Direction, MoveOptions, MoveResult } from './move.ts';
-import { Cmd, Report, readHeight } from './protocol.ts';
+import { Cmd, Report, heightParams, readHeight } from './protocol.ts';
 import type { Frame } from './protocol.ts';
 
 /** What {@link Desk} needs from a transport. `DeskLink` satisfies it. */
@@ -101,8 +101,17 @@ export interface DeskOptions {
   settleMs: number;
   /** Passed through to {@link MoveController}. */
   move: Partial<MoveOptions>;
-  /** A memory move is finished once the height has held still this long. */
+  /** A move the control box drives is finished once height holds still this long. */
   nativeSettleMs: number;
+  /**
+   * How long to wait for a `GOTO_HEIGHT` to get the desk moving.
+   *
+   * The command is absent from older control boxes, and one that does not
+   * know it simply says nothing. Rather than reporting a desk that will not
+   * move, the step-command loop takes over after this — slower and less
+   * accurate, but it works on anything that speaks the handset protocol.
+   */
+  nativeStartMs: number;
   /** How far off a memory height still counts as being at that preset. */
   memoryToleranceMm: number;
 }
@@ -113,11 +122,33 @@ export const DEFAULT_DESK_OPTIONS: DeskOptions = {
   settleMs: 3000,
   move: {},
   nativeSettleMs: 1500,
+  nativeStartMs: 2500,
   memoryToleranceMm: 12,
 };
 
-/** How often the move loop wakes up. Well under `pulseMs`. */
+/** How often the step-command loop wakes up. Well under `pulseMs`. */
 const TICK_MS = 50;
+
+/**
+ * A move the control box is driving by itself.
+ *
+ * Nothing here steers it — the box has its own ramp and stops on its own.
+ * This is only what is needed to tell when it is over, which way it went, and
+ * whether it ever started.
+ */
+interface NativeMove {
+  target: number;
+  direction: Direction;
+  settle: (outcome: MoveOutcome) => void;
+  lastHeight: number;
+  lastChangeAt: number;
+  deadline: number;
+  startedAt: number;
+  /** A slider move can fall back to step commands; a memory move need not. */
+  fallback: boolean;
+  /** Whether the desk has been seen to move since the command went out. */
+  moved: boolean;
+}
 
 export interface Desk {
   on(event: 'change', listener: (state: DeskState) => void): this;
@@ -145,21 +176,7 @@ export class Desk extends EventEmitter {
     settle: (outcome: MoveOutcome) => void;
   } | null = null;
 
-  /**
-   * A move the control box is driving by itself, after a memory command.
-   *
-   * Nothing here steers it — the box has its own ramp and stops on its own.
-   * This only watches the height reports so the plugin knows when it is over
-   * and which way it went.
-   */
-  #native: {
-    target: number;
-    direction: Direction;
-    settle: (outcome: MoveOutcome) => void;
-    lastHeight: number;
-    lastChangeAt: number;
-    deadline: number;
-  } | null = null;
+  #native: NativeMove | null = null;
   #nativeTimer: NodeJS.Timeout | null = null;
   #timer: NodeJS.Timeout | null = null;
   #poll: NodeJS.Timeout | null = null;
@@ -264,23 +281,64 @@ export class Desk extends EventEmitter {
     }
 
     const targetMm = percentToHeight(percent, min, max);
+    this.#log.info(`moving to ${percent}% (${targetMm} mm) from ${this.#heightMm} mm`);
+    return this.#drive(targetMm, Cmd.GOTO_HEIGHT, heightParams(targetMm), true);
+  }
+
+  /**
+   * Hand a destination to the control box and watch.
+   *
+   * Used for both the slider and the memory buttons, because both are the
+   * same thing from here: one command, then the box runs its own ramp. The
+   * plugin's own step loop is a fallback for a slider move on a control box
+   * that does not know {@link Cmd.GOTO_HEIGHT}; a memory command is older
+   * than this plugin and needs none.
+   */
+  async #drive(
+    targetMm: number,
+    command: number,
+    params: number[],
+    fallback: boolean,
+  ): Promise<MoveOutcome> {
+    const from = this.#heightMm;
+    if (from === null) {
+      return 'refused';
+    }
+
     this.#endMove('superseded');
-    this.#cancelNative();
+    // Awaited, not fired and forgotten: the step command behind STOP would
+    // otherwise land after the new destination and cancel that instead.
+    await this.#cancelNative();
     this.#endNative('superseded');
     this.#targetMm = targetMm;
 
-    const controller = new MoveController(targetMm, this.#heightMm, Date.now(), this.#opts.move);
     const outcome = new Promise<MoveOutcome>((resolve) => {
-      this.#move = { controller, settle: resolve };
+      const now = Date.now();
+      this.#native = {
+        target: targetMm,
+        direction: targetMm >= from ? 'up' : 'down',
+        settle: resolve,
+        lastHeight: from,
+        lastChangeAt: now,
+        startedAt: now,
+        fallback,
+        moved: false,
+        // Generous: the box ramps, so it is slower than a flat-out step move.
+        deadline: now + (Math.abs(targetMm - from) / 6) * 1000 + 10_000,
+      };
     });
 
-    this.#log.info(`moving to ${percent}% (${targetMm} mm) from ${this.#heightMm} mm`);
-    this.#emitChange();
-    this.#tick();
-    if (this.#move) {
-      this.#timer = setInterval(() => this.#tick(), TICK_MS);
-      this.#timer.unref();
+    try {
+      await this.#transport.send(command, params);
+    } catch (error) {
+      this.#log.debug(`move command failed: ${String(error)}`);
+      this.#endNative('disconnected');
+      return outcome;
     }
+
+    this.#nativeTimer = setInterval(() => this.#watchNative(), 250);
+    this.#nativeTimer.unref();
+    this.#emitChange();
     return outcome;
   }
 
@@ -305,39 +363,8 @@ export class Desk extends EventEmitter {
     }
 
     const command = [Cmd.MOVE_1, Cmd.MOVE_2, Cmd.MOVE_3, Cmd.MOVE_4][slot - 1];
-    this.#endMove('superseded');
-    this.#cancelNative();
-    this.#endNative('superseded');
-
-    const from = this.#heightMm;
-    this.#targetMm = target;
-    this.#log.info(`memory ${slot}: ${from} → ${target} mm`);
-
-    const outcome = new Promise<MoveOutcome>((resolve) => {
-      const now = Date.now();
-      this.#native = {
-        target,
-        direction: target >= from ? 'up' : 'down',
-        settle: resolve,
-        lastHeight: from,
-        lastChangeAt: now,
-        // Generous: the box ramps, so it is slower than a flat-out step move.
-        deadline: now + (Math.abs(target - from) / 6) * 1000 + 10_000,
-      };
-    });
-
-    try {
-      await this.#transport.send(command);
-    } catch (error) {
-      this.#log.debug(`memory command failed: ${String(error)}`);
-      this.#endNative('disconnected');
-      return outcome;
-    }
-
-    this.#nativeTimer = setInterval(() => this.#watchNative(), 250);
-    this.#nativeTimer.unref();
-    this.#emitChange();
-    return outcome;
+    this.#log.info(`memory ${slot}: ${this.#heightMm} → ${target} mm`);
+    return this.#drive(target, command, [], false);
   }
 
   /** Decide whether a control-box-driven move has finished, or gone wrong. */
@@ -356,6 +383,23 @@ export class Desk extends EventEmitter {
     if (height !== null && height !== native.lastHeight) {
       native.lastHeight = height;
       native.lastChangeAt = now;
+      native.moved = true;
+    }
+
+    // A desk that has not moved at all has not finished — it has not begun,
+    // which is a different thing and wants a different answer. Silence this
+    // early means the command was not understood rather than that the desk
+    // stopped, so this has to be decided before the settling check below.
+    if (!native.moved) {
+      if (now - native.startedAt > this.#opts.nativeStartMs) {
+        if (native.fallback) {
+          this.#fallBackToSteps(native);
+        } else {
+          this.#log.warn('the control box did not act on the command');
+          this.#endNative('stalled');
+        }
+      }
+      return;
     }
 
     if (now > native.deadline) {
@@ -367,6 +411,38 @@ export class Desk extends EventEmitter {
     if (now - native.lastChangeAt >= this.#opts.nativeSettleMs) {
       const off = height === null ? Infinity : Math.abs(height - native.target);
       this.#endNative(off <= this.#opts.memoryToleranceMm ? 'arrived' : 'stalled');
+    }
+  }
+
+  /**
+   * Take over a move the control box ignored, using step commands.
+   *
+   * The pending promise is carried across rather than settled: the caller
+   * asked to reach a height and does not care which of the two ways got it
+   * there, only how it ended.
+   */
+  #fallBackToSteps(native: NativeMove): void {
+    if (this.#nativeTimer) {
+      clearInterval(this.#nativeTimer);
+      this.#nativeTimer = null;
+    }
+    this.#native = null;
+
+    const from = this.#heightMm;
+    if (from === null || !this.#transport.connected) {
+      native.settle('disconnected');
+      return;
+    }
+
+    this.#log.warn(
+      'this control box does not appear to know GOTO_HEIGHT — falling back to step commands',
+    );
+    const controller = new MoveController(native.target, from, Date.now(), this.#opts.move);
+    this.#move = { controller, settle: native.settle };
+    this.#tick();
+    if (this.#move) {
+      this.#timer = setInterval(() => this.#tick(), TICK_MS);
+      this.#timer.unref();
     }
   }
 
@@ -385,7 +461,7 @@ export class Desk extends EventEmitter {
     if (outcome !== 'arrived') {
       this.#targetMm = this.#heightMm;
     }
-    this.#log.info(`memory move ended: ${outcome} at ${this.#heightMm} mm`);
+    this.#log.info(`move ended: ${outcome} at ${this.#heightMm} mm`);
     native.settle(outcome);
     this.emit('move-end', outcome);
     this.#emitChange();
@@ -400,13 +476,16 @@ export class Desk extends EventEmitter {
    */
   stop(): void {
     if (this.#native) {
-      this.#log.info('stopping memory move');
-      this.#cancelNative();
+      this.#log.info('stopping');
+      void this.#cancelNative();
       this.#endNative('superseded');
       return;
     }
     if (this.#move) {
       this.#log.info('stopping');
+      // Belt and braces: ceasing to pulse is enough on its own, but STOP
+      // shortens the coast from about 18 mm to 13 mm.
+      void this.#transport.send(Cmd.STOP).catch(() => {});
       this.#endMove('superseded');
       this.#targetMm = this.#heightMm;
       this.#emitChange();
@@ -416,23 +495,24 @@ export class Desk extends EventEmitter {
   /**
    * Call off a move the control box is driving.
    *
-   * There is no stop command, but a single step command cancels a memory move
-   * — verified on hardware: a move from 1203 mm towards 801 mm stopped at
-   * 1148 mm after one `LOWER`, 347 mm short. It then coasts the usual ~12 mm.
-   *
-   * The step goes the way the desk is already travelling, deliberately. If a
-   * future control box ignores the cancel, the worst case is one extra step in
-   * the direction it was going anyway, rather than a lurch the other way.
+   * `STOP` is the proper way and coasts about 13 mm. A step command also
+   * cancels one, on this box at least, and is sent after it as insurance for
+   * a control box that predates `STOP` — it is the same thing a handset press
+   * does, and it goes the way the desk is already travelling so that being
+   * wrong costs one extra step rather than a lurch backwards.
    */
-  #cancelNative(): void {
+  async #cancelNative(): Promise<void> {
     const native = this.#native;
     if (!native) {
       return;
     }
-    const command = native.direction === 'up' ? Cmd.RAISE : Cmd.LOWER;
-    void this.#transport
-      .send(command)
-      .catch((error: unknown) => this.#log.debug(`cancelling memory move failed: ${String(error)}`));
+    const fallback = native.direction === 'up' ? Cmd.RAISE : Cmd.LOWER;
+    try {
+      await this.#transport.send(Cmd.STOP);
+      await this.#transport.send(fallback);
+    } catch (error) {
+      this.#log.debug(`stopping failed: ${String(error)}`);
+    }
   }
 
   #tick(): void {

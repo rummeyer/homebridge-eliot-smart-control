@@ -222,9 +222,57 @@ A consequence of the 3-second stall window that is worth knowing: a *brief*
 handset press pauses a move rather than cancelling it, and the move resumes
 when the button is released. Only sustained resistance ends it.
 
+## Commands the published write-ups do not have
+
+Read out of the Eliot Android app (`com.eliot` 1.0, React Native, so the
+command table is plain JavaScript) and then verified against the desk. The
+first two matter most: without them this plugin drove the desk by repeating
+step commands and could not stop it properly.
+
+| Name | CMD | Params | |
+|---|---|---|---|
+| `GOTO_HEIGHT` | `1B` | 2 | Drive to a height, big-endian millimetres. **Verified**: 802 → 900 mm against a target of 902, landing 2 mm out, on one command |
+| `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
+| `LOW_POWER` | `18` | 1 | The app's eco mode: `0` off, `1` on |
+| `MOTION_MODE` | `19` | 1 | `0` hold the button, `1` one touch |
+| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40 |
+| `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low |
+| `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it |
+| `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
+| `PUT_LIMIT_MIN` | `22` | 2 | Set the soft minimum to a height |
+| `LIMIT_CLEAR` | `23` | 1 | Clear limits: `0` both, `1` max, `2` min |
+| `VERSION` | `1C` | 0 | Control box firmware version |
+| `CONNECT` | `FE` | 0 | The app brackets configuration commands with it. Purpose unknown; everything here works without it |
+
+`GOTO_HEIGHT` is only sent once when the desk is in one-touch mode
+(`MOTION_MODE = 1`). In hold mode the app repeats it, which is worth knowing
+before exposing that setting to anyone: turning one-touch off takes away the
+desk's ability to drive itself anywhere.
+
+**The app writes to service `FF12`, characteristic `FF01`** — not the `FE60`
+this dongle exposes. It targets an older generation. The frame layer is
+evidently unchanged, since this desk answers commands from both sets, but that
+is the reason each one above was checked here rather than taken on trust.
+
+### There is no reset command
+
+The app's *Automatischer Reset* is not a protocol command at all. Its own
+warning says what it does: *"Der Tisch wird selbstständig auf eine Höhe von ca.
+64 cm fahren"* — 64 cm being this desk's physical minimum of 642 mm. It drives
+to the bottom so the control box can find its zero again. Soft limits and
+memory positions survive it. `0x91 CALIBRATE` from the Jarvis notes appears
+nowhere in the app.
+
 ## The consequence for HomeKit
 
-**There is no "move to height X" command.** The handset protocol only has
+**Correction, and it invalidates what follows.** There *is* a move-to-height
+command, `GOTO_HEIGHT` above, and a `STOP`. The section below describes the
+first implementation, which repeated step commands because the published
+write-ups have neither. It is kept because the step loop still exists as a
+fallback for control boxes that do not know `GOTO_HEIGHT`, and because the
+measurements in it are real.
+
+The handset protocol as published only has
 step-up, step-down and the four memory positions. Continuous movement is the
 handset repeating `RAISE` or `LOWER` roughly twice a second; the desk stops when
 the repeats stop.

@@ -6,6 +6,26 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The desk is now given a height and left to drive there itself.** Its
+  control box has a *go to height* command and a *stop* command; neither
+  appears in the published write-ups of this protocol, and both were found in
+  the Eliot Android app and verified on hardware. Moves land exactly on target
+  instead of within about 1%, on the control box's own ramp, and stopping part
+  way coasts 13 mm rather than 18.
+- Step commands remain as a fallback for a control box that does not know
+  *go to height*: if the desk has not moved shortly after being told where to
+  go, the old loop takes over. Untested against such a box, since none was to
+  hand.
+
+### Added
+
+- `docs/PROTOCOL.md` records the twelve commands the published write-ups are
+  missing, and what the app's *Automatischer Reset* actually does — it is not
+  a command at all, but a drive to the physical bottom so the control box can
+  find its zero.
+
 ## [0.3.1] — 2026-09-18
 
 ### Fixed

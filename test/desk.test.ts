@@ -32,6 +32,8 @@ class FakeDesk extends EventEmitter implements Transport {
   failWrites = false;
   /** Set to pin the desk in place however hard it is pushed. */
   blocked = false;
+  /** Clear to play an older control box that has never heard of GOTO_HEIGHT. */
+  knowsGotoHeight = true;
 
   #lastPulse = 0;
   #reporter: NodeJS.Timeout;
@@ -105,7 +107,7 @@ class FakeDesk extends EventEmitter implements Transport {
     this.heightMm += (last === Cmd.RAISE ? 1 : -1) * 22 * 0.02;
   }
 
-  async send(command: number): Promise<void> {
+  async send(command: number, params?: Buffer | number[]): Promise<void> {
     if (this.failWrites) {
       throw new Error('write failed');
     }
@@ -122,6 +124,17 @@ class FakeDesk extends EventEmitter implements Transport {
       this.emit('frame', report(Report.POSITION_2, be(1204)));
       this.emit('frame', report(Report.POSITION_3, be(1000)));
       this.emit('frame', report(Report.POSITION_4, be(0)));
+    }
+    if (command === Cmd.STOP) {
+      this.#cancelDrive();
+      return;
+    }
+    if (command === Cmd.GOTO_HEIGHT) {
+      if (this.knowsGotoHeight && !this.blocked && params) {
+        this.#driveTo((params[0] << 8) | params[1]);
+      }
+      // An older box does not answer an unknown command; it just sits there.
+      return;
     }
     const memory = { [Cmd.MOVE_1]: 801, [Cmd.MOVE_2]: 1204, [Cmd.MOVE_3]: 1000 }[command];
     if (memory !== undefined && !this.blocked) {
@@ -214,7 +227,7 @@ test('a dropped link makes the state untrustworthy again', async () => {
   await box.close();
 });
 
-test('a move drives the desk and lands on target', async () => {
+test('a move hands the height to the control box and lands on it', async () => {
   const { box, desk } = await ready(880);
 
   const outcome = await desk.moveTo(60);
@@ -223,19 +236,34 @@ test('a move drives the desk and lands on target', async () => {
   await tick(400);
   // 60% of 700–1280 is 1048 mm.
   assert.ok(Math.abs(box.heightMm - 1048) < 25, `landed at ${box.heightMm}`);
-  assert.ok(box.sent.includes(Cmd.RAISE));
-  assert.ok(!box.sent.includes(Cmd.LOWER), 'never reversed');
+  assert.ok(box.sent.includes(Cmd.GOTO_HEIGHT), 'used the native command');
+  assert.ok(!box.sent.includes(Cmd.RAISE), 'and no step commands at all');
+  assert.ok(!box.sent.includes(Cmd.LOWER));
   await desk.close();
   await box.close();
 });
 
-test('a lower target drives downwards', async () => {
+test('a lower target goes down, still in one command', async () => {
   const { box, desk } = await ready(1100);
 
   assert.equal(await desk.moveTo(20), 'arrived');
   assert.ok(box.heightMm < 1100);
-  assert.ok(box.sent.includes(Cmd.LOWER));
-  assert.ok(!box.sent.includes(Cmd.RAISE));
+  assert.equal(box.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length, 1);
+  await desk.close();
+  await box.close();
+});
+
+test('a control box that ignores GOTO_HEIGHT is driven by hand instead', async () => {
+  const { box, desk } = await ready(880);
+  box.knowsGotoHeight = false;
+
+  const outcome = await desk.moveTo(60);
+
+  assert.equal(outcome, 'arrived', 'the caller gets the same answer either way');
+  assert.ok(box.sent.includes(Cmd.GOTO_HEIGHT), 'the native command was tried first');
+  assert.ok(box.sent.includes(Cmd.RAISE), 'and step commands took over');
+  await tick(400);
+  assert.ok(Math.abs(box.heightMm - 1048) < 30, `landed at ${box.heightMm}`);
   await desk.close();
   await box.close();
 });
@@ -253,17 +281,19 @@ test('a new target supersedes the one in flight', async () => {
   await box.close();
 });
 
-test('stop ends the move and stops the pulses', async () => {
+test('stop sends the stop command and the desk halts', async () => {
   const { box, desk } = await ready(880);
 
   const move = desk.moveTo(100);
-  await tick(300);
+  await tick(400);
+  const partWay = box.heightMm;
   desk.stop();
 
   assert.equal(await move, 'superseded');
-  const after = box.sent.length;
-  await tick(500);
-  assert.equal(box.sent.length, after, 'no pulses after stop');
+  assert.ok(box.sent.includes(Cmd.STOP), 'the proper stop command was used');
+  await tick(600);
+  assert.ok(box.heightMm < 1280, `stopped at ${box.heightMm}, short of the top`);
+  assert.ok(box.heightMm >= partWay - 1, 'and did not jump backwards');
   assert.equal(desk.state.moving, null);
   await desk.close();
   await box.close();
@@ -412,8 +442,10 @@ test('a memory move can be stopped part way', async () => {
   await tick(500);
   assert.ok(box.heightMm < 1100, `stopped at ${box.heightMm}, nowhere near 1204`);
   assert.ok(box.heightMm >= partWay - 1, 'and did not jump backwards');
-  // The cancel is a step command in the direction of travel.
-  assert.ok(box.sent.includes(Cmd.RAISE), 'a RAISE was used to cancel');
+  assert.ok(box.sent.includes(Cmd.STOP), 'STOP was used');
+  // Insurance for a box that predates STOP, and it goes the way the desk was
+  // already travelling so that being wrong costs one step, not a reversal.
+  assert.ok(box.sent.includes(Cmd.RAISE), 'with a step command behind it');
   assert.ok(!box.sent.includes(Cmd.LOWER), 'never the opposite direction');
 
   await desk.close();
@@ -476,11 +508,13 @@ test('clearing a soft limit falls back to the physical range', async () => {
   await box.close();
 });
 
-test('a failing write does not stall the loop, it ends as lost', async () => {
+test('a write that cannot be delivered ends the move at once', async () => {
   const { box, desk } = await ready(880);
   box.failWrites = true;
 
-  assert.equal(await desk.moveTo(100), 'lost');
+  // The destination is a single awaited write now, so a dead link is known
+  // immediately rather than inferred a few seconds later from silence.
+  assert.equal(await desk.moveTo(100), 'disconnected');
   await desk.close();
   await box.close();
 });

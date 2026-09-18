@@ -142,23 +142,9 @@ Home app the same way you paired Homebridge itself.
 
 ## Things worth knowing
 
-**About 3% is the finest step that moves the desk.** It needs roughly 18 mm to
-come to a stop, so a request smaller than that can only produce hunting. The
-plugin reports the move as done without sending anything, and the slider
-springs back. This is the desk, not the plugin.
-
-**Positions land within about 1%.** Once a move finishes, the reported position
-snaps onto what you asked for, so the Home app settles instead of claiming to
-be moving forever.
-
-**There is no stop button in the protocol.** The desk moves because the plugin
-keeps telling it to, and stops when that stops — so a stop still coasts the
-same ~18 mm any move does.
-
-**A memory move can be stopped**, even though the control box is driving it
-itself. There is no stop command, but any step command cancels one — the same
-thing that happens when you touch the handset mid-move. It then coasts to a
-halt like any other move.
+**Positions land exactly.** The desk is given a height and drives to it on its
+own ramp, easing in and stopping within a couple of millimetres — the same way
+the memory buttons on the handset work. Stopping part way coasts about 13 mm.
 
 **Using the handset during a move is safe and does what you would expect.** The
 control box gives the handset priority and stops — it never drives against you.

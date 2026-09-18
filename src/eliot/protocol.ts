@@ -6,10 +6,12 @@
  * adds nothing of its own. So this module speaks the control box's protocol,
  * not a Bluetooth one, and the BLE layer in link.ts only has to move buffers.
  *
- * The framing below is the Jiecang/Fully handset protocol, documented by
- * phord/Jarvis and Rocka84/jiecang_desk_controller. It is a *hypothesis* for
- * Eliot until tools/eliot-probe.js confirms it against real hardware — see
- * docs/PROTOCOL.md for what is verified and what is not.
+ * The framing is the Jiecang/Fully handset protocol, documented by
+ * phord/Jarvis and Rocka84/jiecang_desk_controller and confirmed here against
+ * an Eliot. Those write-ups describe an older control box and are missing
+ * several commands this one has, including the two that matter most; the rest
+ * came out of the Eliot Android app. See docs/PROTOCOL.md for which is which
+ * and what has been verified on hardware.
  */
 
 /** Sender address, repeated twice at the start of every frame. */
@@ -35,6 +37,52 @@ export const Cmd = {
   RANGE: 0x0c,
   /** Request which soft limits are set. Answered by {@link Report.LIMIT_FLAGS}. */
   LIMITS: 0x20,
+  /**
+   * Drive to a height: two params, big-endian millimetres.
+   *
+   * The control box runs its own ramp and eases into the target, landing
+   * within about 2 mm — better than repeating step commands can manage, and
+   * gentler. Absent from the published Jiecang write-ups, which is why the
+   * first version of this plugin drove the desk by hand.
+   */
+  GOTO_HEIGHT: 0x1b,
+  /**
+   * Stop now.
+   *
+   * Also absent from the published write-ups. Verified: sent 108 mm into a
+   * move it halted the desk after 13 mm of coasting.
+   */
+  STOP: 0x2b,
+  /** Set the soft maximum to a height: two params, big-endian millimetres. */
+  PUT_LIMIT_MAX: 0x21,
+  /** Set the soft minimum to a height. */
+  PUT_LIMIT_MIN: 0x22,
+  /** Clear soft limits: `0` both, `1` the maximum, `2` the minimum. */
+  LIMIT_CLEAR: 0x23,
+  /** Child lock: param `0` reads the state, `1` toggles it. */
+  LOCK: 0x1f,
+  /** Low power, the app's eco mode: `0` off, `1` on. */
+  LOW_POWER: 0x18,
+  /**
+   * How the desk responds to a memory button: `0` hold it, `1` one touch.
+   *
+   * With one touch the control box drives to a position by itself, which is
+   * what makes {@link GOTO_HEIGHT} and the memory commands work unattended.
+   */
+  MOTION_MODE: 0x19,
+  /** Travel speed. The app offers 28, 31, 35, 38 and 40. */
+  VELOCITY: 0x13,
+  /** Anti-collision sensitivity: `1` high, `2` medium, `3` low. */
+  SENSITIVITY: 0x1d,
+  /** Control box firmware version. */
+  VERSION: 0x1c,
+  /**
+   * Sent by the app before and after each configuration command.
+   *
+   * Its purpose is not known. This plugin does not send it, and every command
+   * it does send works without it.
+   */
+  CONNECT: 0xfe,
   /** Move to memory position 3. */
   MOVE_3: 0x27,
   /** Move to memory position 4. */
@@ -170,6 +218,12 @@ export class FrameReader {
 
     return null;
   }
+}
+
+/** Split a height into the two big-endian bytes a command wants. */
+export function heightParams(heightMm: number): number[] {
+  const clamped = Math.max(0, Math.min(0xffff, Math.round(heightMm)));
+  return [(clamped >> 8) & 0xff, clamped & 0xff];
 }
 
 /**
