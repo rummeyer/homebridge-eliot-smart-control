@@ -152,6 +152,12 @@ itself. There is no stop command, but any step command cancels one — the same
 thing that happens when you touch the handset mid-move. It then coasts to a
 halt like any other move.
 
+**Using the handset during a move is safe and does what you would expect.** The
+control box gives the handset priority and stops — it never drives against you.
+A brief press pauses the move, which then carries on; holding the button ends
+it, and the Home app settles on wherever the desk actually is rather than
+trying again.
+
 **The desk's own safety features still apply.** Anti-collision and the soft
 limits live in the control box and are untouched by this plugin, which adds its
 own limits on top: it gives up if the desk stops making progress, if it takes

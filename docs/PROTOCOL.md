@@ -197,6 +197,31 @@ already going rather than a lurch the other way.
 An unset memory reports a height of `0`, which no desk could be at; treat it as
 absent rather than as a destination.
 
+## Two commanders at once
+
+Tested with a person holding the handset against a move this plugin had
+started. The control box gives the handset priority and simply stops: it does
+not fight, oscillate, or split the difference. Height reports keep coming; they
+just stop changing.
+
+    6.3s  1151 mm   move begins, towards 920 mm, downwards
+    9.9s  1084 mm   handset pressed the other way
+   12.4s  1082 mm   2 mm in 2.5 s — the desk is standing still
+   12.8s  1078 mm   released; the move carries on
+   14.3s  1044 mm   handset pressed and held
+   17.2s            stalled — the loop gives up after 3 s of no progress
+   18.5s  1052 mm   pulses stop, and the handset gets its way
+
+Two things follow, both of which the plugin already handles. Nothing has to be
+forced apart, because the control box will not drive against a person. And
+`stalled` is the correct response rather than a fault to be worked around: the
+loop stops asking, and the target is set to where the desk actually is, so it
+makes no later attempt to overrule whoever was at the handset.
+
+A consequence of the 3-second stall window that is worth knowing: a *brief*
+handset press pauses a move rather than cancelling it, and the move resumes
+when the button is released. Only sustained resistance ends it.
+
 ## The consequence for HomeKit
 
 **There is no "move to height X" command.** The handset protocol only has
