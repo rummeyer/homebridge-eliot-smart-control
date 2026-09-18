@@ -32,7 +32,7 @@
     "build": "tsc",
     "watch": "tsc --watch",
     "clean": "rm -rf dist",
-    "test": "node --test test/*.test.ts",
+    "test": "npm run build && node --test test/*.test.ts",
     "probe": "node tools/eliot-probe.js"
   },
   "dependencies": {

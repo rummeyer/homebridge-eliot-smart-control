@@ -1,0 +1,60 @@
+{
+  "pluginAlias": "EliotSmartControl",
+  "pluginType": "platform",
+  "singular": true,
+  "headerDisplay": "Control an Eliot sit-stand desk with the Smart Dongle from the Home app, over Bluetooth. Requires Linux — the plugin talks to BlueZ.",
+  "footerDisplay": "The dongle advertises as **Schreibtisch** and has no vendor name, so it can be hard to spot. Run `node tools/eliot-probe.js scan` on the Homebridge host to find its address.\n\nThe desk appears as a window covering: 0% is the lowest height it is set to allow, 100% the highest. Those come from the desk's own limits, so changing them on the handset changes what 0% and 100% mean.",
+  "schema": {
+    "type": "object",
+    "properties": {
+      "name": {
+        "title": "Name",
+        "type": "string",
+        "default": "Eliot Smart Control",
+        "description": "Only the log prefix. Each desk is named separately below."
+      },
+      "desks": {
+        "title": "Desks",
+        "type": "array",
+        "items": {
+          "type": "object",
+          "properties": {
+            "name": {
+              "title": "Name",
+              "type": "string",
+              "required": true,
+              "default": "Schreibtisch",
+              "placeholder": "Schreibtisch",
+              "description": "What the desk is called in the Home app."
+            },
+            "mac": {
+              "title": "Dongle address",
+              "type": "string",
+              "required": true,
+              "placeholder": "E5:02:4F:BF:74:A2",
+              "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
+              "description": "Bluetooth address of the Smart Dongle."
+            },
+            "idlePollSeconds": {
+              "title": "Idle refresh (seconds)",
+              "type": "integer",
+              "default": 30,
+              "minimum": 0,
+              "description": "How often to ask a standing desk for its height. The desk reports by itself while moving, so this only catches the handset being used. 0 turns it off."
+            }
+          }
+        }
+      }
+    }
+  },
+  "layout": [
+    { "key": "name" },
+    {
+      "key": "desks",
+      "type": "array",
+      "orderable": false,
+      "buttonText": "Add desk",
+      "items": ["desks[].name", "desks[].mac", "desks[].idlePollSeconds"]
+    }
+  ]
+}

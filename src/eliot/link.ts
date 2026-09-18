@@ -199,9 +199,32 @@ export class DeskLink extends EventEmitter {
     if (this.#adapter) {
       return;
     }
-    const bluetooth = createBluetooth();
-    this.#bluetooth = bluetooth;
-    const adapter = await bluetooth.bluetooth.defaultAdapter();
+    const session = createBluetooth();
+    this.#bluetooth = session;
+
+    // dbus-next reports a bus that never came up — no socket, no permission —
+    // as an `error` event on the bus rather than by rejecting anything we
+    // awaited. Unhandled, an EventEmitter error event is fatal, so a host
+    // without a reachable system bus would take Homebridge down instead of
+    // logging one unreachable desk.
+    const bus = (session.bluetooth as unknown as { dbus?: EventEmitter }).dbus;
+    bus?.on('error', (error: unknown) => {
+      if ((error as NodeJS.ErrnoException)?.code === 'ENOENT') {
+        this.#log.error(
+          'No D-Bus system bus. This plugin needs BlueZ, so it only runs on Linux; ' +
+            'in a container the host\'s /var/run/dbus/system_bus_socket must be mounted.',
+        );
+      } else {
+        this.#log.debug(`D-Bus error: ${describeError(error)}`);
+      }
+      // Whatever it was, this session is finished. Drop it so the next attempt
+      // builds a fresh one rather than reusing a dead bus.
+      this.#adapter = null;
+      this.#bluetooth = null;
+      this.#onDropped();
+    });
+
+    const adapter = await session.bluetooth.defaultAdapter();
     if (!(await adapter.isPowered())) {
       throw new Error('Bluetooth adapter is powered off — try: bluetoothctl power on');
     }
@@ -258,7 +281,11 @@ export class DeskLink extends EventEmitter {
       this.#device = null;
     }
     if (this.#closing && this.#bluetooth) {
-      this.#bluetooth.destroy();
+      try {
+        this.#bluetooth.destroy();
+      } catch {
+        // Already gone; nothing to release.
+      }
       this.#bluetooth = null;
       this.#adapter = null;
     }
