@@ -1,7 +1,7 @@
 {
   "name": "homebridge-eliot-smart-control",
   "displayName": "Eliot Smart Control",
-  "version": "0.3.1",
+  "version": "0.4.0",
   "description": "Homebridge plugin for the Eliot sit-stand desk with the Smart Dongle, over Bluetooth LE",
   "license": "MIT",
   "author": "Oliver Rummeyer",
