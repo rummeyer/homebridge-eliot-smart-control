@@ -150,6 +150,32 @@ works in millimetres and never writes `UNITS`, so it must read the current
 setting rather than assume it. Jarvis's rule of thumb — 240–530 means inches,
 650–1290 means millimetres — is a fallback, not a substitute.
 
+## Measured dynamics
+
+From four test moves on the verified desk, loaded with a normal desk's worth of
+equipment:
+
+| | |
+|---|---|
+| Travel speed | ~22 mm/s, both directions |
+| Coasting after the last step | 17 mm up, 19 mm down |
+| Height reports while moving | every 100–300 ms, unprompted |
+| Landing accuracy | ±3 mm once the stopping distance is calibrated |
+
+**The control box reports height on its own while the desk moves.** Nothing has
+to poll for it, which is what makes the `lost` stopping condition meaningful:
+silence during a move is a real fault, not the normal state of affairs.
+
+The coasting figure is measured from the last height reported before the final
+pulse to where the desk came to rest, so it absorbs report lag as well as
+momentum. That is why `approachMm` is a measurement rather than a calculation.
+
+One consequence worth stating plainly: **the desk cannot make a move shorter
+than its stopping distance.** Asking for 10 mm when it needs 18 mm to stop can
+only produce hunting, so the controller arrives without sending anything. In
+HomeKit terms roughly 3% is the finest step that actually moves the desk, and a
+smaller request will leave the reported position where it was.
+
 ## The consequence for HomeKit
 
 **There is no "move to height X" command.** The handset protocol only has

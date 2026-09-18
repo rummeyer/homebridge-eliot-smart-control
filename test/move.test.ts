@@ -91,11 +91,27 @@ test('driving down arrives too, and only ever sends "down"', () => {
 });
 
 test('stopping short of the target leaves room for coasting', () => {
-  // 20 mm of drift after the last pulse must not carry it far past the target.
-  const run = simulate(1000, 800, { coastMm: 20 });
+  // The drift measured on real hardware: 17 mm up, 19 mm down. Neither may
+  // carry the desk meaningfully past the target.
+  for (const coastMm of [17, 19]) {
+    const up = simulate(1000, 800, { coastMm });
+    assert.equal(up.result, 'arrived');
+    assert.ok(Math.abs(up.height - 1000) <= 8, `up overshot to ${up.height} with ${coastMm} mm coast`);
 
-  assert.equal(run.result, 'arrived');
-  assert.ok(run.height <= 1000 + 12, `overshot to ${run.height}`);
+    const down = simulate(800, 1000, { coastMm });
+    assert.equal(down.result, 'arrived');
+    assert.ok(Math.abs(down.height - 800) <= 8, `down overshot to ${down.height} with ${coastMm} mm coast`);
+  }
+});
+
+test('a move shorter than the stopping distance sends nothing at all', () => {
+  // Asking for 10 mm when the desk needs 18 mm to stop would mean pulsing and
+  // then hunting. Arriving without moving is the honest answer.
+  const controller = new MoveController(890, 880, 0);
+  const { send, result } = controller.step(0);
+
+  assert.equal(result, 'arrived');
+  assert.equal(send, null);
 });
 
 test('a desk that stops moving under load is reported as stalled', () => {

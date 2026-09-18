@@ -41,8 +41,19 @@ export interface MoveOptions {
    */
   pulseMs: number;
   /**
-   * Stop pulsing this far before the target. The desk coasts after the last
-   * step, so aiming exactly at the target overshoots it.
+   * Stop pulsing this far before the target.
+   *
+   * The desk coasts after the last step, so aiming at the target overshoots
+   * it. Measured on an Eliot at roughly 22 mm/s: 17 mm of drift going up,
+   * 19 mm going down, from the last height reported before the final pulse.
+   * That figure absorbs report lag as well as true momentum, which is why it
+   * is measured end to end rather than derived.
+   *
+   * It also sets the smallest move worth making. A target closer than this is
+   * already inside the stopping distance, so the controller arrives without
+   * sending anything — better than pulsing and hunting around a position the
+   * desk cannot hold to. In HomeKit terms about 3% is the finest step that
+   * actually moves.
    */
   approachMm: number;
   /** Close enough to call it arrived without moving at all. */
@@ -73,7 +84,7 @@ export interface MoveOptions {
 
 export const DEFAULT_MOVE_OPTIONS: MoveOptions = {
   pulseMs: 400,
-  approachMm: 12,
+  approachMm: 18,
   toleranceMm: 6,
   stallMm: 3,
   stallMs: 3000,
