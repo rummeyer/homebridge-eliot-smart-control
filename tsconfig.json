@@ -3,6 +3,12 @@
     "target": "ES2022",
     "module": "nodenext",
     "moduleResolution": "nodenext",
+    // Write relative imports with their real .ts extension and let tsc rewrite
+    // them to .js on the way out. Node can then run the sources directly —
+    // which is what the tests do, and what makes a module that imports other
+    // source modules testable at all.
+    "allowImportingTsExtensions": true,
+    "rewriteRelativeImportExtensions": true,
     "lib": ["ES2022"],
     "outDir": "./dist",
     "rootDir": "./src",

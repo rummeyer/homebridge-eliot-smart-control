@@ -1,0 +1,372 @@
+/**
+ * The desk as a thing with a state, sitting between the transport and HomeKit.
+ *
+ * Holds what the control box has told us, keeps it current, and runs moves to
+ * completion. Depends on {@link Transport} rather than on `DeskLink` so the
+ * whole orchestration layer — where a move is cancelled mid-flight, where a
+ * disconnect interrupts one, where the handset moves the desk behind our back —
+ * can be tested without Bluetooth.
+ */
+import { EventEmitter } from 'node:events';
+
+import type { LinkLogger } from './link.ts';
+import { MoveController, heightToPercent, percentToHeight } from './move.ts';
+import type { MoveOptions, MoveResult } from './move.ts';
+import { Cmd, Report, readHeight } from './protocol.ts';
+import type { Frame } from './protocol.ts';
+
+/** What {@link Desk} needs from a transport. `DeskLink` satisfies it. */
+export interface Transport {
+  readonly connected: boolean;
+  on(event: 'frame', listener: (frame: Frame) => void): unknown;
+  on(event: 'connected', listener: () => void): unknown;
+  on(event: 'disconnected', listener: () => void): unknown;
+  send(command: number, params?: Buffer | number[]): Promise<void>;
+  start(): Promise<void>;
+  close(): Promise<void>;
+}
+
+/** How a move ended, including the ways that are nothing to do with the desk. */
+export type MoveOutcome =
+  | MoveResult
+  /** A newer target replaced this one before it finished. */
+  | 'superseded'
+  /** The link went away mid-move. */
+  | 'disconnected'
+  /** Never started: no state, or the target was out of range. */
+  | 'refused';
+
+export interface DeskState {
+  connected: boolean;
+  /** Current height, or null before the desk has told us. */
+  heightMm: number | null;
+  /** Usable travel: the soft limits if set, otherwise the physical range. */
+  minMm: number | null;
+  maxMm: number | null;
+  /** Height as HomeKit's 0–100, or null before we know. */
+  position: number | null;
+  /** Where we are driving to, or equal to `position` when at rest. */
+  target: number | null;
+  /** Which way the desk is going right now. */
+  moving: 'up' | 'down' | null;
+}
+
+export interface DeskOptions {
+  /**
+   * How often to ask for the height while idle.
+   *
+   * The control box reports height unprompted while it moves, so this is only
+   * for what happens in between: someone using the handset, or a desk that was
+   * moved while we were disconnected. Cheap, and the alternative is a Home app
+   * showing a height from an hour ago.
+   */
+  idlePollMs: number;
+  /** A height change this large while at rest means somebody else moved it. */
+  externalMoveMm: number;
+  /** Passed through to {@link MoveController}. */
+  move: Partial<MoveOptions>;
+}
+
+export const DEFAULT_DESK_OPTIONS: DeskOptions = {
+  idlePollMs: 30_000,
+  externalMoveMm: 5,
+  move: {},
+};
+
+/** How often the move loop wakes up. Well under `pulseMs`. */
+const TICK_MS = 50;
+
+export interface Desk {
+  on(event: 'change', listener: (state: DeskState) => void): this;
+  on(event: 'move-end', listener: (outcome: MoveOutcome) => void): this;
+}
+
+export class Desk extends EventEmitter {
+  readonly #transport: Transport;
+  readonly #log: LinkLogger;
+  readonly #opts: DeskOptions;
+
+  #heightMm: number | null = null;
+  #softMin: number | null = null;
+  #softMax: number | null = null;
+  #physMin: number | null = null;
+  #physMax: number | null = null;
+  #targetMm: number | null = null;
+
+  #move: {
+    controller: MoveController;
+    settle: (outcome: MoveOutcome) => void;
+  } | null = null;
+  #timer: NodeJS.Timeout | null = null;
+  #poll: NodeJS.Timeout | null = null;
+  #closing = false;
+
+  constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
+    super();
+    this.#transport = transport;
+    this.#log = log;
+    this.#opts = { ...DEFAULT_DESK_OPTIONS, ...options };
+
+    transport.on('frame', (frame) => this.#onFrame(frame));
+    transport.on('connected', () => void this.#onConnected());
+    transport.on('disconnected', () => this.#onDisconnected());
+  }
+
+  get state(): DeskState {
+    const min = this.minMm;
+    const max = this.maxMm;
+    const position =
+      this.#heightMm !== null && min !== null && max !== null
+        ? heightToPercent(this.#heightMm, min, max)
+        : null;
+    const target =
+      this.#targetMm !== null && min !== null && max !== null
+        ? heightToPercent(this.#targetMm, min, max)
+        : position;
+
+    return {
+      connected: this.#transport.connected,
+      heightMm: this.#heightMm,
+      minMm: min,
+      maxMm: max,
+      position,
+      target,
+      moving: this.#move?.controller.direction ?? null,
+    };
+  }
+
+  /** Soft minimum if the desk has one, else its physical floor. */
+  get minMm(): number | null {
+    return this.#softMin ?? this.#physMin;
+  }
+
+  /** Soft maximum if the desk has one, else its physical ceiling. */
+  get maxMm(): number | null {
+    return this.#softMax ?? this.#physMax;
+  }
+
+  async start(): Promise<void> {
+    this.#closing = false;
+    await this.#transport.start();
+  }
+
+  async close(): Promise<void> {
+    this.#closing = true;
+    this.#endMove('disconnected');
+    this.#stopPolling();
+    await this.#transport.close();
+  }
+
+  /** Ask the desk for everything it will tell us about itself. */
+  async refresh(): Promise<void> {
+    for (const command of [Cmd.WAKE, Cmd.SETTINGS, Cmd.RANGE, Cmd.LIMITS]) {
+      if (!this.#transport.connected) {
+        return;
+      }
+      await this.#transport.send(command);
+      await delay(250);
+    }
+  }
+
+  /**
+   * Drive to a HomeKit position, 0–100.
+   *
+   * Resolves when the move ends, however it ends. A second call while one is
+   * running replaces it: the first resolves `superseded` and the desk carries
+   * straight on towards the new target without stopping in between.
+   */
+  async moveTo(percent: number): Promise<MoveOutcome> {
+    const min = this.minMm;
+    const max = this.maxMm;
+    if (min === null || max === null || this.#heightMm === null) {
+      this.#log.warn('cannot move: the desk has not said where it is yet');
+      return 'refused';
+    }
+    if (!this.#transport.connected) {
+      return 'disconnected';
+    }
+
+    const targetMm = percentToHeight(percent, min, max);
+    this.#endMove('superseded');
+    this.#targetMm = targetMm;
+
+    const controller = new MoveController(targetMm, this.#heightMm, Date.now(), this.#opts.move);
+    const outcome = new Promise<MoveOutcome>((resolve) => {
+      this.#move = { controller, settle: resolve };
+    });
+
+    this.#log.info(`moving to ${percent}% (${targetMm} mm) from ${this.#heightMm} mm`);
+    this.#emitChange();
+    this.#tick();
+    if (this.#move) {
+      this.#timer = setInterval(() => this.#tick(), TICK_MS);
+      this.#timer.unref();
+    }
+    return outcome;
+  }
+
+  /**
+   * Stop where it is.
+   *
+   * There is no stop command — the desk halts because we stop asking it to
+   * move — so this cannot be instant. It coasts the same ~18 mm it would at
+   * the end of any move.
+   */
+  stop(): void {
+    if (this.#move) {
+      this.#log.info('stopping');
+      this.#endMove('superseded');
+      this.#targetMm = this.#heightMm;
+      this.#emitChange();
+    }
+  }
+
+  #tick(): void {
+    const move = this.#move;
+    if (!move) {
+      return;
+    }
+    if (!this.#transport.connected) {
+      this.#endMove('disconnected');
+      return;
+    }
+
+    const { send, result } = move.controller.step(Date.now());
+    if (result) {
+      this.#log.info(`move ended: ${result} at ${this.#heightMm} mm`);
+      this.#targetMm = this.#heightMm;
+      this.#endMove(result);
+      return;
+    }
+    if (send) {
+      // Fire and forget: the next tick re-decides from the reports that come
+      // back, so a single failed write must not stall the loop. A link that is
+      // really gone shows up as `disconnected` above or `lost` in the
+      // controller, both of which stop the desk.
+      void this.#transport
+        .send(send === 'up' ? Cmd.RAISE : Cmd.LOWER)
+        .catch((error: unknown) => this.#log.debug(`pulse failed: ${String(error)}`));
+    }
+  }
+
+  #endMove(outcome: MoveOutcome): void {
+    if (this.#timer) {
+      clearInterval(this.#timer);
+      this.#timer = null;
+    }
+    const move = this.#move;
+    if (!move) {
+      return;
+    }
+    this.#move = null;
+    move.settle(outcome);
+    this.emit('move-end', outcome);
+    this.#emitChange();
+  }
+
+  #onFrame(frame: Frame): void {
+    switch (frame.command) {
+      case Report.HEIGHT: {
+        this.#onHeight(readHeight(frame.params));
+        return;
+      }
+      case Report.RANGE:
+        if (frame.params.length >= 4) {
+          this.#physMax = readHeight(frame.params, 0);
+          this.#physMin = readHeight(frame.params, 2);
+          this.#emitChange();
+        }
+        return;
+      case Report.LIMIT_MAX:
+        this.#softMax = readHeight(frame.params);
+        this.#emitChange();
+        return;
+      case Report.LIMIT_MIN:
+        this.#softMin = readHeight(frame.params);
+        this.#emitChange();
+        return;
+      case Report.LIMIT_FLAGS: {
+        // Bit 0 is the max limit, bit 4 the min. A limit that is not set means
+        // the physical end of travel, so forget any stale value rather than
+        // keeping one the desk no longer honours.
+        const flags = frame.params[0] ?? 0;
+        if (!(flags & 0x01)) {
+          this.#softMax = null;
+        }
+        if (!(flags & 0x10)) {
+          this.#softMin = null;
+        }
+        this.#emitChange();
+        return;
+      }
+      default:
+        return;
+    }
+  }
+
+  #onHeight(heightMm: number): void {
+    const previous = this.#heightMm;
+    this.#heightMm = heightMm;
+
+    if (this.#move) {
+      this.#move.controller.report(heightMm, Date.now());
+      this.#emitChange();
+      return;
+    }
+
+    // Nobody here asked for this. Either the handset moved it or it was moved
+    // while we were away; either way the target follows the desk rather than
+    // the desk being dragged back to a target it never agreed to.
+    if (previous === null || Math.abs(heightMm - previous) >= this.#opts.externalMoveMm) {
+      if (previous !== null) {
+        this.#log.debug(`moved elsewhere: ${previous} → ${heightMm} mm`);
+      }
+      this.#targetMm = heightMm;
+      this.#emitChange();
+    }
+  }
+
+  async #onConnected(): Promise<void> {
+    this.#emitChange();
+    try {
+      await this.refresh();
+    } catch (error) {
+      this.#log.debug(`refresh after connect failed: ${String(error)}`);
+    }
+    this.#startPolling();
+  }
+
+  #onDisconnected(): void {
+    this.#endMove('disconnected');
+    this.#stopPolling();
+    this.#emitChange();
+  }
+
+  #startPolling(): void {
+    this.#stopPolling();
+    if (this.#closing || this.#opts.idlePollMs <= 0) {
+      return;
+    }
+    this.#poll = setInterval(() => {
+      // Only while at rest: during a move the desk is already talking, and an
+      // extra request would just compete with the pulses for the link.
+      if (!this.#move && this.#transport.connected) {
+        void this.#transport.send(Cmd.SETTINGS).catch(() => {});
+      }
+    }, this.#opts.idlePollMs);
+    this.#poll.unref();
+  }
+
+  #stopPolling(): void {
+    if (this.#poll) {
+      clearInterval(this.#poll);
+      this.#poll = null;
+    }
+  }
+
+  #emitChange(): void {
+    this.emit('change', this.state);
+  }
+}
+
+const delay = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));

@@ -15,10 +15,10 @@ import { EventEmitter } from 'node:events';
 import { createBluetooth } from 'node-ble';
 import type { Adapter, Device, GattCharacteristic } from 'node-ble';
 
-import { describeError } from '../errors.js';
-import { FrameReader, encode } from './protocol.js';
-import type { Frame } from './protocol.js';
-import { OperationQueue } from './queue.js';
+import { describeError } from '../errors.ts';
+import { FrameReader, encode } from './protocol.ts';
+import type { Frame } from './protocol.ts';
+import { OperationQueue } from './queue.ts';
 
 /** Lierda's serial service, as found on the Smart Dongle. */
 export const SERVICE_SERIAL = '0000fe60-0000-1000-8000-00805f9b34fb';
