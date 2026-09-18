@@ -38,6 +38,15 @@ export type MoveOutcome =
 
 export interface DeskState {
   connected: boolean;
+  /**
+   * Whether a full refresh has completed, so the numbers can be trusted.
+   *
+   * Between connecting and the limits arriving, the same height reads as a
+   * different percentage: the physical range is known first and the soft
+   * limits replace it a moment later. Publishing in that window shows a
+   * position that then jumps for no reason the user can see.
+   */
+  ready: boolean;
   /** Current height, or null before the desk has told us. */
   heightMm: number | null;
   /** Usable travel: the soft limits if set, otherwise the physical range. */
@@ -63,6 +72,14 @@ export interface DeskOptions {
   idlePollMs: number;
   /** A height change this large while at rest means somebody else moved it. */
   externalMoveMm: number;
+  /**
+   * How long after a move to keep treating height changes as our own.
+   *
+   * The desk drifts ~18 mm after the last pulse, well past
+   * `externalMoveMm`, so without this window every move ends by looking like
+   * somebody grabbing the handset.
+   */
+  settleMs: number;
   /** Passed through to {@link MoveController}. */
   move: Partial<MoveOptions>;
 }
@@ -70,6 +87,7 @@ export interface DeskOptions {
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
   idlePollMs: 30_000,
   externalMoveMm: 5,
+  settleMs: 3000,
   move: {},
 };
 
@@ -99,7 +117,10 @@ export class Desk extends EventEmitter {
   } | null = null;
   #timer: NodeJS.Timeout | null = null;
   #poll: NodeJS.Timeout | null = null;
+  /** Until when height changes are the tail of our own move, not somebody's. */
+  #settleUntil = 0;
   #closing = false;
+  #refreshed = false;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -126,6 +147,7 @@ export class Desk extends EventEmitter {
 
     return {
       connected: this.#transport.connected,
+      ready: this.#refreshed && position !== null,
       heightMm: this.#heightMm,
       minMm: min,
       maxMm: max,
@@ -157,7 +179,12 @@ export class Desk extends EventEmitter {
     await this.#transport.close();
   }
 
-  /** Ask the desk for everything it will tell us about itself. */
+  /**
+   * Ask the desk for everything it will tell us about itself.
+   *
+   * `LIMITS` goes last on purpose: it is the answer that decides what 0% and
+   * 100% mean, and nothing should be published before it lands.
+   */
   async refresh(): Promise<void> {
     for (const command of [Cmd.WAKE, Cmd.SETTINGS, Cmd.RANGE, Cmd.LIMITS]) {
       if (!this.#transport.connected) {
@@ -166,6 +193,8 @@ export class Desk extends EventEmitter {
       await this.#transport.send(command);
       await delay(250);
     }
+    this.#refreshed = true;
+    this.#emitChange();
   }
 
   /**
@@ -234,7 +263,6 @@ export class Desk extends EventEmitter {
     const { send, result } = move.controller.step(Date.now());
     if (result) {
       this.#log.info(`move ended: ${result} at ${this.#heightMm} mm`);
-      this.#targetMm = this.#heightMm;
       this.#endMove(result);
       return;
     }
@@ -259,6 +287,17 @@ export class Desk extends EventEmitter {
       return;
     }
     this.#move = null;
+    this.#settleUntil = Date.now() + this.#opts.settleMs;
+
+    // On success the target stays where it was asked for. Reading it back off
+    // the desk would throw the request away at the moment it succeeded, and
+    // then follow the coast down — so HomeKit would watch a target it never
+    // set drift by a few percent. Every other outcome means we are not going
+    // there after all, and the target should say so.
+    if (outcome !== 'arrived') {
+      this.#targetMm = this.#heightMm;
+    }
+
     move.settle(outcome);
     this.emit('move-end', outcome);
     this.#emitChange();
@@ -314,6 +353,12 @@ export class Desk extends EventEmitter {
       return;
     }
 
+    if (Date.now() < this.#settleUntil) {
+      // Still coasting from our own last pulse.
+      this.#emitChange();
+      return;
+    }
+
     // Nobody here asked for this. Either the handset moved it or it was moved
     // while we were away; either way the target follows the desk rather than
     // the desk being dragged back to a target it never agreed to.
@@ -337,6 +382,9 @@ export class Desk extends EventEmitter {
   }
 
   #onDisconnected(): void {
+    // The desk may be moved by hand while we are away, so nothing we hold is
+    // trustworthy until it has been asked again.
+    this.#refreshed = false;
     this.#endMove('disconnected');
     this.#stopPolling();
     this.#emitChange();

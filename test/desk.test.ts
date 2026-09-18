@@ -114,10 +114,41 @@ test('connecting loads height and limits', async () => {
   const { box, desk } = await ready();
 
   assert.equal(desk.state.connected, true);
+  assert.equal(desk.state.ready, true);
   assert.equal(desk.state.heightMm, 880);
   assert.equal(desk.minMm, MIN);
   assert.equal(desk.maxMm, MAX);
   assert.equal(desk.state.position, 31);
+  await desk.close();
+  await box.close();
+});
+
+test('nothing is published as ready before the limits arrive', async () => {
+  const box = new FakeDesk(880);
+  const desk = new Desk(box, silent, { idlePollMs: 0 });
+  const seen: boolean[] = [];
+  desk.on('change', (s) => seen.push(s.ready));
+
+  await desk.start();
+  await tick(400);
+  assert.equal(desk.state.ready, false, 'limits have not landed yet');
+
+  await tick(1200);
+  assert.equal(desk.state.ready, true);
+  assert.ok(!seen.slice(0, -1).every(Boolean), 'and it was not ready from the start');
+
+  await desk.close();
+  await box.close();
+});
+
+test('a dropped link makes the state untrustworthy again', async () => {
+  const { box, desk } = await ready(880);
+  assert.equal(desk.state.ready, true);
+
+  box.drop();
+  await tick(20);
+
+  assert.equal(desk.state.ready, false, 'the desk can be moved by hand while away');
   await desk.close();
   await box.close();
 });
@@ -209,6 +240,47 @@ test('the handset moving the desk updates the target too', async () => {
   assert.equal(desk.state.position, 60);
   // Crucially the target follows, so nothing tries to drive it back.
   assert.equal(desk.state.target, 60);
+  await desk.close();
+  await box.close();
+});
+
+test('a successful move keeps the target that was asked for', async () => {
+  const { box, desk } = await ready(880);
+
+  assert.equal(await desk.moveTo(60), 'arrived');
+  assert.equal(desk.state.target, 60, 'the request must survive its own success');
+
+  // And the coast afterwards must not be mistaken for someone at the handset.
+  box.handset(Math.round(box.heightMm) + 12);
+  await tick(50);
+  assert.equal(desk.state.target, 60, 'coasting must not drag the target along');
+
+  await desk.close();
+  await box.close();
+});
+
+test('a failed move gives up the target instead of pretending', async () => {
+  const { box, desk } = await ready(880);
+  box.blocked = true;
+
+  assert.equal(await desk.moveTo(100), 'stalled');
+  assert.equal(desk.state.target, desk.state.position, 'not still heading for 100%');
+
+  await desk.close();
+  await box.close();
+});
+
+test('the handset is still noticed once the settling window has passed', async () => {
+  const { box, desk } = await ready(880);
+
+  assert.equal(await desk.moveTo(60), 'arrived');
+  await tick(3100);
+  box.handset(760);
+  await tick(50);
+
+  assert.equal(desk.state.position, 10);
+  assert.equal(desk.state.target, 10, 'a real handset move does move the target');
+
   await desk.close();
   await box.close();
 });
