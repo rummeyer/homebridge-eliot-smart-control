@@ -36,7 +36,8 @@
     "probe": "node tools/eliot-probe.js"
   },
   "dependencies": {
-    "node-ble": "^1.13.0"
+    "node-ble": "^1.13.0",
+    "@homebridge/plugin-ui-utils": "^2.2.6"
   },
   "devDependencies": {
     "@types/node": "^22.20.0",
@@ -45,6 +46,7 @@
   },
   "files": [
     "dist",
+    "homebridge-ui",
     "tools",
     "docs",
     "config.schema.json",

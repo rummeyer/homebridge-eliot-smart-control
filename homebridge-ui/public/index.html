@@ -1,0 +1,168 @@
+<!--
+  Settings page shown inside the Homebridge UI.
+
+  Runs in an iframe the host provides; `homebridge.*` is injected by it. The
+  host supplies Bootstrap and the active theme, so styling stays minimal.
+
+  The scan panel sits above the ordinary form rather than replacing it: every
+  other setting is fine as a plain field, and only the address is hard to come
+  by.
+-->
+<style>
+  .eliot-hidden  { display: none; }
+  .eliot-hint    { font-size: .8rem; opacity: .7; }
+  .eliot-msg     { margin-top: .75rem; margin-bottom: 0; font-size: .85rem; }
+  .eliot-list    { margin-top: .75rem; }
+  .eliot-item    { display: flex; gap: .75rem; align-items: center;
+                   padding: .5rem 0; border-top: 1px solid rgba(128,128,128,.25); }
+  .eliot-item:first-child { border-top: 0; }
+  .eliot-grow    { flex: 1 1 auto; min-width: 0; }
+  .eliot-mac     { font-family: monospace; }
+  .eliot-badge   { font-size: .7rem; padding: .15rem .4rem; border-radius: .25rem;
+                   background: rgba(128,128,128,.2); white-space: nowrap; }
+  .eliot-yes     { background: rgba(46,158,91,.25); }
+</style>
+
+<div class="card mb-3">
+  <div class="card-body">
+    <h5 class="card-title">Find your desk</h5>
+    <p class="card-text text-muted small mb-3">
+      The Smart Dongle does not announce itself usefully &mdash; it appears as
+      <strong>Schreibtisch</strong>, with no manufacturer name, and many units have no
+      address printed on them. This looks for the Bluetooth service the desk actually
+      speaks, so a confirmed result is the right device rather than a good guess.
+    </p>
+
+    <div class="d-flex gap-2 align-items-center">
+      <button type="button" class="btn btn-primary" id="eliot-scan">Scan for desks</button>
+      <span class="eliot-hint" id="eliot-hint">Takes about 12 seconds.</span>
+    </div>
+
+    <p class="eliot-msg eliot-hidden" id="eliot-msg"></p>
+    <div class="eliot-list" id="eliot-results"></div>
+  </div>
+</div>
+
+<script>
+  (async () => {
+    const button  = document.getElementById('eliot-scan');
+    const hint    = document.getElementById('eliot-hint');
+    const message = document.getElementById('eliot-msg');
+    const results = document.getElementById('eliot-results');
+
+    await homebridge.showSchemaForm();
+
+    const say = (text, kind) => {
+      message.textContent = text;
+      message.className = `eliot-msg text-${kind}`;
+    };
+
+    /** Put an address into the config, adding a desk entry if there is none. */
+    async function use(found) {
+      const config = await homebridge.getPluginConfig();
+      const block = config[0] ?? { platform: 'EliotSmartControl' };
+      block.desks = Array.isArray(block.desks) ? block.desks : [];
+
+      const existing = block.desks.find((d) => (d.mac || '').toUpperCase() === found.address);
+      if (existing) {
+        say(`${found.address} is already configured as "${existing.name}".`, 'muted');
+        return;
+      }
+
+      // Reuse a half-filled entry rather than adding a second one beside it:
+      // someone who opened the form, typed a name and then scanned means that
+      // entry, not a new one.
+      const blank = block.desks.find((d) => !d.mac);
+      if (blank) {
+        blank.mac = found.address;
+        blank.name = blank.name || found.name || 'Schreibtisch';
+      } else {
+        block.desks.push({ name: found.name || 'Schreibtisch', mac: found.address });
+      }
+
+      await homebridge.updatePluginConfig([block, ...config.slice(1)]);
+      await homebridge.savePluginConfig();
+
+      // The form renders from the config it was given, so it has to be rebuilt
+      // to show the address that was just written into it.
+      homebridge.hideSchemaForm();
+      await homebridge.showSchemaForm();
+      say(`Added ${found.address}. Restart Homebridge to connect to it.`, 'success');
+    }
+
+    function render(found, others) {
+      results.innerHTML = '';
+      if (!found.length) {
+        say(
+          'No desks found. If the Eliot app on your phone is connected, close it and turn ' +
+            'Bluetooth off there — the dongle takes one connection at a time and will not ' +
+            'advertise while something holds it. Then unplug it for five seconds.',
+          'warning',
+        );
+        return;
+      }
+
+      for (const desk of found) {
+        const row = document.createElement('div');
+        row.className = 'eliot-item';
+
+        const left = document.createElement('div');
+        left.className = 'eliot-grow';
+        const title = document.createElement('div');
+        title.innerHTML =
+          `<span class="eliot-mac">${desk.address}</span>` +
+          (desk.name ? ` &mdash; ${desk.name}` : '');
+        const sub = document.createElement('div');
+        sub.className = 'eliot-hint';
+        const bits = [];
+        bits.push(desk.confirmed ? 'confirmed desk' : 'not confirmed');
+        bits.push(desk.rssi == null ? 'signal unknown' : `${desk.rssi} dBm`);
+        if (desk.connected) {
+          bits.push('in use — already connected, by this plugin or a phone');
+        }
+        if (desk.rssi != null && desk.rssi < -85) {
+          bits.push('very weak: expect it to drop');
+        }
+        sub.textContent = bits.join(' · ');
+        left.append(title, sub);
+
+        const badge = document.createElement('span');
+        badge.className = `eliot-badge${desk.confirmed ? ' eliot-yes' : ''}`;
+        badge.textContent = desk.confirmed ? 'desk' : '?';
+
+        const pick = document.createElement('button');
+        pick.type = 'button';
+        pick.className = 'btn btn-sm btn-outline-primary';
+        pick.textContent = 'Use this';
+        pick.addEventListener('click', () => void use(desk));
+
+        row.append(badge, left, pick);
+        results.append(row);
+      }
+
+      say(
+        `${found.length} candidate${found.length === 1 ? '' : 's'}` +
+          (others ? `, plus ${others} unnamed devices ignored.` : '.'),
+        'muted',
+      );
+    }
+
+    button.addEventListener('click', async () => {
+      button.disabled = true;
+      results.innerHTML = '';
+      hint.textContent = 'Scanning …';
+      homebridge.showSpinner();
+      say('Looking for desks. Anything already connected to a phone will not appear.', 'muted');
+      try {
+        const { desks, others } = await homebridge.request('/scan', { seconds: 12 });
+        render(desks, others);
+      } catch (error) {
+        say(error.message || String(error), 'danger');
+      } finally {
+        homebridge.hideSpinner();
+        hint.textContent = 'Takes about 12 seconds.';
+        button.disabled = false;
+      }
+    });
+  })();
+</script>

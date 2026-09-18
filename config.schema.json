@@ -87,5 +87,7 @@
         }
       ]
     }
-  ]
+  ],
+  "customUi": true,
+  "customUiPath": "./homebridge-ui"
 }
