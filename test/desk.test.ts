@@ -34,6 +34,7 @@ class FakeDesk extends EventEmitter implements Transport {
   blocked = false;
   /** Clear to play an older control box that has never heard of GOTO_HEIGHT. */
   knowsGotoHeight = true;
+  locked = false;
 
   #lastPulse = 0;
   #reporter: NodeJS.Timeout;
@@ -125,6 +126,14 @@ class FakeDesk extends EventEmitter implements Transport {
       this.emit('frame', report(Report.POSITION_3, be(1000)));
       this.emit('frame', report(Report.POSITION_4, be(0)));
     }
+    if (command === Cmd.LOCK) {
+      // Param 0 asks, param 1 flips; either way the answer is the new state.
+      if (params && params[0] === 1) {
+        this.locked = !this.locked;
+      }
+      this.emit('frame', report(Report.LOCK, [this.locked ? 1 : 0]));
+      return;
+    }
     if (command === Cmd.STOP) {
       this.#cancelDrive();
       return;
@@ -184,11 +193,12 @@ async function ready(startMm = 880) {
   return { box, desk };
 }
 
-test('connecting loads height and limits', async () => {
+test('connecting loads height, limits and the lock state', async () => {
   const { box, desk } = await ready();
 
   assert.equal(desk.state.connected, true);
   assert.equal(desk.state.ready, true);
+  assert.equal(desk.state.locked, false);
   assert.equal(desk.state.heightMm, 880);
   assert.equal(desk.minMm, MIN);
   assert.equal(desk.maxMm, MAX);
@@ -404,6 +414,48 @@ test('the handset is still noticed once the settling window has passed', async (
   assert.equal(desk.state.position, 10);
   assert.equal(desk.state.target, 10, 'a real handset move does move the target');
 
+  await desk.close();
+  await box.close();
+});
+
+test('locking and unlocking the desk works and reports back', async () => {
+  const { box, desk } = await ready(880);
+  assert.equal(desk.state.locked, false);
+
+  assert.equal(await desk.setLocked(true), true);
+  assert.equal(box.locked, true, 'the desk is locked');
+  assert.equal(desk.state.locked, true, 'and says so');
+
+  assert.equal(await desk.setLocked(false), true);
+  assert.equal(box.locked, false);
+  assert.equal(desk.state.locked, false);
+
+  await desk.close();
+  await box.close();
+});
+
+test('asking for the state it is already in sends nothing', async () => {
+  const { box, desk } = await ready(880);
+  const before = box.sent.filter((c) => c === Cmd.LOCK).length;
+
+  // The control box offers a toggle, not a setting. Sending it anyway would
+  // unlock a locked desk every time something asked for it to be locked.
+  assert.equal(await desk.setLocked(false), true);
+
+  assert.equal(box.sent.filter((c) => c === Cmd.LOCK).length, before);
+  assert.equal(box.locked, false);
+  await desk.close();
+  await box.close();
+});
+
+test('a dropped link forgets the lock state rather than guessing', async () => {
+  const { box, desk } = await ready(880);
+  assert.equal(desk.state.locked, false);
+
+  box.drop();
+  await tick(20);
+
+  assert.equal(desk.state.locked, null, 'it can be locked at the handset while away');
   await desk.close();
   await box.close();
 });

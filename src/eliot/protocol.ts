@@ -105,6 +105,8 @@ export const Report = {
   LIMIT_MAX: 0x21,
   /** Soft minimum height, if one is set. */
   LIMIT_MIN: 0x22,
+  /** Child lock state: `0` unlocked, `1` locked. Answers {@link Cmd.LOCK}. */
+  LOCK: 0x1f,
   /** Memory position 1 height. */
   POSITION_1: 0x25,
   /** Memory position 2 height. */

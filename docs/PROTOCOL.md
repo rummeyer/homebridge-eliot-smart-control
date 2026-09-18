@@ -233,11 +233,11 @@ step commands and could not stop it properly.
 |---|---|---|---|
 | `GOTO_HEIGHT` | `1B` | 2 | Drive to a height, big-endian millimetres. **Verified**: 802 → 900 mm against a target of 902, landing 2 mm out, on one command |
 | `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
-| `LOW_POWER` | `18` | 1 | The app's eco mode: `0` off, `1` on |
+| `LOW_POWER` | `18` | 1 | `0` off, `1` on. **No measurable effect here** — see below |
 | `MOTION_MODE` | `19` | 1 | `0` hold the button, `1` one touch |
-| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40 |
+| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **No measurable effect here** — see below |
 | `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low |
-| `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it |
+| `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified**, and the only setting this control box reads back |
 | `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
 | `PUT_LIMIT_MIN` | `22` | 2 | Set the soft minimum to a height |
 | `LIMIT_CLEAR` | `23` | 1 | Clear limits: `0` both, `1` max, `2` min |
@@ -253,6 +253,44 @@ desk's ability to drive itself anywhere.
 this dongle exposes. It targets an older generation. The frame layer is
 evidently unchanged, since this desk answers commands from both sets, but that
 is the reason each one above was checked here rather than taken on trust.
+
+### What the control box will tell you about itself
+
+Almost nothing. Asked over the dongle port, it reports height, the four memory
+positions, the travel range and the soft limits — and of every setting the app
+can change, only the child lock:
+
+    → F1 F1 1F 01 00 20 7E     ask
+    ← F2 F2 1F 01 00 …         unlocked
+    → F1 F1 1F 01 01 21 7E     toggle
+    ← F2 F2 1F 01 01 …         now locked
+
+Note that `1F` is a **toggle**, not a setting: asking for the state it is
+already in would flip it. Param `0` asks, param `1` flips, and both answer with
+the state afterwards, so nothing has to be assumed.
+
+Nothing else answers. That is presumably why the app keeps its own copy of the
+speed and the eco setting in the phone's storage rather than reading them from
+the desk — a copy that is wrong the moment anyone uses another phone.
+
+### Two commands that do nothing here
+
+Both are in the app and both are accepted without complaint; neither changes
+anything that can be measured.
+
+`VELOCITY` was tried at 40 and 28, over the same 220 mm in the same direction,
+three runs: **22.6, 22.4, 22.4 mm/s**. `LOW_POWER` was tried off, on and off
+again on the same rig: **22.2, 22.4, 22.6 mm/s**. This desk travels at 22.4
+mm/s whatever it is told.
+
+An earlier attempt appeared to show a difference and was wrong: the two runs
+covered different distances, and since the control box ramps at both ends, the
+longer run averages higher. Same direction, same distance, or the number means
+nothing.
+
+`LOW_POWER` may well do what its name suggests and govern standby draw rather
+than speed, which this cannot measure and the desk will not report. Unverifiable
+in both directions is the reason neither is exposed.
 
 ### There is no reset command
 

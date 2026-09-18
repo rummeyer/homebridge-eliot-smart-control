@@ -56,6 +56,12 @@
                 "title": "Name"
               },
               "description": "Optionale Namen für Memory 1 bis 4, in dieser Reihenfolge. Leer lassen für \"Memory 1\", \"Memory 2\" und so weiter."
+            },
+            "childLockSwitch": {
+              "title": "Kindersicherung als Schalter",
+              "type": "boolean",
+              "default": true,
+              "description": "Die Kindersicherung des Tisches in der Home-App anbieten. Sie ist die einzige Einstellung, die die Controlbox zurückmeldet, also die einzige, die ehrlich angezeigt werden kann."
             }
           }
         }
@@ -75,6 +81,7 @@
         "desks[].name",
         "desks[].mac",
         "desks[].idlePollSeconds",
+        "desks[].childLockSwitch",
         "desks[].memorySwitches",
         {
           "key": "desks[].memoryNames",

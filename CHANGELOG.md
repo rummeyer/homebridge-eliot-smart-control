@@ -6,6 +6,11 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The desk's child lock as a switch.** It shows the real state: unlike every
+  other setting the app can change, this one the control box reads back.
+
 ### Changed
 
 - **The desk is now given a height and left to drive there itself.** Its
@@ -24,7 +29,9 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - `docs/PROTOCOL.md` records the twelve commands the published write-ups are
   missing, and what the app's *Automatischer Reset* actually does — it is not
   a command at all, but a drive to the physical bottom so the control box can
-  find its zero.
+  find its zero. It also records the two commands that do nothing on this
+  control box, measured rather than assumed, which is why no switches were
+  built for them.
 
 ## [0.3.1] — 2026-09-18
 

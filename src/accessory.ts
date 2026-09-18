@@ -44,6 +44,7 @@ export class EliotAccessory {
   #snapTo: number | null = null;
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
+  #lockService: Service | undefined;
 
   /**
    * @param transport Stand-in for the Bluetooth link. Only tests pass one;
@@ -100,6 +101,20 @@ export class EliotAccessory {
           this.#desk.stop();
         }
       });
+
+    if (config.childLockSwitch !== false) {
+      // Unlike the memory switches this needs nothing from the desk to exist,
+      // so it is built here rather than waiting for the first report.
+      const subtype = 'childlock';
+      this.#lockService =
+        accessory.getServiceById(HapService.Switch, subtype) ??
+        accessory.addService(HapService.Switch, `${config.name} Child Lock`, subtype);
+      this.#name(this.#lockService, 'Child Lock');
+      this.#lockService
+        .getCharacteristic(Characteristic.On)
+        .onGet(() => this.#lockState())
+        .onSet((value) => this.#setLock(Boolean(value)));
+    }
 
     this.#desk.on('change', (state) => {
       this.#syncMemorySwitches(state);
@@ -266,6 +281,32 @@ export class EliotAccessory {
     }, RELEASE_MS).unref();
   }
 
+  #lockState(): boolean {
+    const state = this.#assertUsable();
+    if (state.locked === null) {
+      throw new this.#platform.api.hap.HapStatusError(
+        this.#platform.api.hap.HAPStatus.SERVICE_COMMUNICATION_FAILURE,
+      );
+    }
+    return state.locked;
+  }
+
+  #setLock(locked: boolean): void {
+    void this.#desk
+      .setLocked(locked)
+      .then((ok) => {
+        if (!ok) {
+          this.#platform.log.warn(
+            `${this.#config.name}: the desk did not ${locked ? 'lock' : 'unlock'}`,
+          );
+        }
+        this.#publish(this.#desk.state);
+      })
+      .catch((error: unknown) => {
+        this.#platform.log.error(`${this.#config.name}: child lock failed: ${String(error)}`);
+      });
+  }
+
   #setMemory(slot: number): void {
     this.#snapTo = null;
     void this.#desk
@@ -295,6 +336,10 @@ export class EliotAccessory {
     this.#service.updateCharacteristic(Characteristic.CurrentPosition, current);
     this.#service.updateCharacteristic(Characteristic.TargetPosition, state.target ?? current);
     this.#service.updateCharacteristic(Characteristic.PositionState, this.#positionState());
+
+    if (this.#lockService && state.locked !== null) {
+      this.#lockService.updateCharacteristic(Characteristic.On, state.locked);
+    }
 
     // Momentary: they are never on except for the moment after a press, which
     // #release already takes care of.

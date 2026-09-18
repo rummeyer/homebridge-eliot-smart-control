@@ -28,8 +28,9 @@ const frame = (command: number, params: number[]): Frame => ({
 class FakeTransport extends EventEmitter implements Transport {
   connected = true;
   sent: number[] = [];
+  locked = false;
 
-  async send(command: number): Promise<void> {
+  async send(command: number, params?: Buffer | number[]): Promise<void> {
     this.sent.push(command);
     if (command === Cmd.SETTINGS) {
       this.emit('frame', frame(Report.HEIGHT, [...be(880), 0x07]));
@@ -37,6 +38,10 @@ class FakeTransport extends EventEmitter implements Transport {
       this.emit('frame', frame(Report.POSITION_2, be(1204)));
       this.emit('frame', frame(Report.POSITION_3, be(1000)));
       this.emit('frame', frame(Report.POSITION_4, be(0)));
+    }
+    if (command === Cmd.LOCK) {
+      if (params && params[0] === 1) this.locked = !this.locked;
+      this.emit('frame', frame(Report.LOCK, [this.locked ? 1 : 0]));
     }
     if (command === Cmd.LIMITS) {
       this.emit('frame', frame(Report.LIMIT_FLAGS, [0x11]));
@@ -146,7 +151,7 @@ test('a fresh accessory gets a switch per set memory, wired up', async () => {
   const accessory = new FakeAccessory();
   const { handle } = await start(accessory);
 
-  const switches = accessory.services.filter((s) => s.kind === 'Switch');
+  const switches = accessory.services.filter((s) => s.kind === 'Switch' && s.subtype !== 'childlock');
   assert.deepEqual(
     switches.map((s) => s.subtype),
     ['memory1', 'memory2', 'memory3'],
@@ -170,7 +175,7 @@ test('a switch restored from the cache is wired up again, not just adopted', asy
 
   const { handle } = await start(accessory);
 
-  const switches = accessory.services.filter((s) => s.kind === 'Switch');
+  const switches = accessory.services.filter((s) => s.kind === 'Switch' && s.subtype !== 'childlock');
   assert.equal(switches.length, 3, 'reused, not duplicated');
   for (const service of switches) {
     const on = service.getCharacteristic('On');
@@ -199,6 +204,24 @@ test('pressing a restored switch actually moves the desk', async () => {
   await handle.stop();
 });
 
+test('the child lock is a stateful switch, on from the start', async () => {
+  const accessory = new FakeAccessory();
+  const { handle, transport } = await start(accessory);
+
+  const service = accessory.getServiceById('Switch', 'childlock');
+  assert.ok(service, 'the switch exists without waiting for the desk');
+
+  const on = service.getCharacteristic('On');
+  assert.equal(await (on.handlers.get as () => unknown)(), false, 'reports the real state');
+
+  await (on.handlers.set as (v: unknown) => unknown)(true);
+  await tick(1200);
+  assert.equal(transport.locked, true, 'the desk actually locked');
+  assert.equal(await (on.handlers.get as () => unknown)(), true);
+
+  await handle.stop();
+});
+
 test('a switch for a memory the desk no longer has is taken away', async () => {
   const accessory = new FakeAccessory();
   // Memory 4 is unset on this desk; a stale button must not survive.
@@ -207,7 +230,10 @@ test('a switch for a memory the desk no longer has is taken away', async () => {
   const { handle } = await start(accessory);
 
   assert.equal(accessory.getServiceById('Switch', 'memory4'), undefined);
-  assert.equal(accessory.services.filter((s) => s.kind === 'Switch').length, 3);
+  assert.equal(
+    accessory.services.filter((s) => s.kind === 'Switch' && s.subtype !== 'childlock').length,
+    3,
+  );
 
   await handle.stop();
 });

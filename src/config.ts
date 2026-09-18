@@ -34,6 +34,13 @@ export interface DeskConfig {
    * handset. Give as many as you care to name; the rest fall back.
    */
   memoryNames?: string[];
+  /**
+   * Expose the desk's child lock as a switch. On by default.
+   *
+   * The only setting the control box reads back on this connection, so it is
+   * the only one that can be shown honestly rather than remembered.
+   */
+  childLockSwitch?: boolean;
 }
 
 export interface EliotPlatformConfig extends PlatformConfig {

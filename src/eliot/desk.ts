@@ -59,6 +59,15 @@ export interface DeskState {
   /** Which way the desk is going right now. */
   moving: 'up' | 'down' | null;
   /**
+   * Whether the desk's own child lock is on, or `null` before it has said.
+   *
+   * The one setting the control box will read back on this port. Everything
+   * else the app can change — eco mode, travel speed, collision sensitivity —
+   * is write-only here, which is presumably why the app keeps its own copy of
+   * them on the phone.
+   */
+  locked: boolean | null;
+  /**
    * The four memory heights in millimetres, `null` where unset.
    *
    * These are the positions behind the handset's memory buttons. The control
@@ -129,6 +138,11 @@ export const DEFAULT_DESK_OPTIONS: DeskOptions = {
 /** How often the step-command loop wakes up. Well under `pulseMs`. */
 const TICK_MS = 50;
 
+/** Parameter to {@link Cmd.LOCK} that asks rather than changes. */
+const LOCK_QUERY = 0x00;
+/** Parameter to {@link Cmd.LOCK} that flips it. */
+const LOCK_TOGGLE = 0x01;
+
 /**
  * A move the control box is driving by itself.
  *
@@ -170,6 +184,7 @@ export class Desk extends EventEmitter {
   #restingMm: number | null = null;
 
   #memories: (number | null)[] = [null, null, null, null];
+  #locked: boolean | null = null;
 
   #move: {
     controller: MoveController;
@@ -217,6 +232,7 @@ export class Desk extends EventEmitter {
       position,
       target,
       moving: this.#move?.controller.direction ?? this.#native?.direction ?? null,
+      locked: this.#locked,
       memories: [...this.#memories],
     };
   }
@@ -251,11 +267,18 @@ export class Desk extends EventEmitter {
    * 100% mean, and nothing should be published before it lands.
    */
   async refresh(): Promise<void> {
-    for (const command of [Cmd.WAKE, Cmd.SETTINGS, Cmd.RANGE, Cmd.LIMITS]) {
+    const questions: [number, number[]][] = [
+      [Cmd.WAKE, []],
+      [Cmd.SETTINGS, []],
+      [Cmd.RANGE, []],
+      [Cmd.LOCK, [LOCK_QUERY]],
+      [Cmd.LIMITS, []],
+    ];
+    for (const [command, params] of questions) {
       if (!this.#transport.connected) {
         return;
       }
-      await this.#transport.send(command);
+      await this.#transport.send(command, params);
       await delay(250);
     }
     this.#refreshed = true;
@@ -468,6 +491,28 @@ export class Desk extends EventEmitter {
   }
 
   /**
+   * Turn the desk's child lock on or off.
+   *
+   * The control box offers a toggle, not a setting, so asking for the state
+   * it is already in must send nothing — otherwise every refresh of a locked
+   * desk would unlock it. The answer to the toggle carries the new state, so
+   * nothing has to be assumed about whether it worked.
+   */
+  async setLocked(locked: boolean): Promise<boolean> {
+    if (!this.#transport.connected) {
+      return false;
+    }
+    if (this.#locked === locked) {
+      return true;
+    }
+    await this.#transport.send(Cmd.LOCK, [LOCK_TOGGLE]);
+    await delay(400);
+    await this.#transport.send(Cmd.LOCK, [LOCK_QUERY]);
+    await delay(400);
+    return this.#locked === locked;
+  }
+
+  /**
    * Stop where it is.
    *
    * There is no stop command — the desk halts because we stop asking it to
@@ -603,6 +648,10 @@ export class Desk extends EventEmitter {
         this.#emitChange();
         return;
       }
+      case Report.LOCK:
+        this.#locked = frame.params[0] === 1;
+        this.#emitChange();
+        return;
       case Report.LIMIT_FLAGS: {
         // Bit 0 is the max limit, bit 4 the min. A limit that is not set means
         // the physical end of travel, so forget any stale value rather than
@@ -678,6 +727,7 @@ export class Desk extends EventEmitter {
     // The desk may be moved by hand while we are away, so nothing we hold is
     // trustworthy until it has been asked again.
     this.#refreshed = false;
+    this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');
     this.#stopPolling();

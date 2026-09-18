@@ -239,7 +239,7 @@ test('the covering offers the controls a desk actually needs', async () => {
   await settle();
 });
 
-test('the presets are momentary switches, named in their own right', async () => {
+test('presets wait for the desk, the child lock does not', async () => {
   const { EliotPlatform } = await load('dist/platform.js');
   const { api, registered } = fakeApi();
 
@@ -248,10 +248,26 @@ test('the presets are momentary switches, named in their own right', async () =>
   await settle();
 
   const accessory = registered.registered[0]![0] as FakeAccessory;
-  // No desk answers here, so no memories are known and no switches appear.
-  // What matters is that nothing was created speculatively.
-  const switches = accessory.services.filter((s) => s.kind === 'Switch');
-  assert.deepEqual(switches, [], 'no preset switches before the desk lists its memories');
+  const subtypes = accessory.services.filter((s) => s.kind === 'Switch').map((s) => s.subtype);
+
+  // Nothing here answers, so which memories exist is unknown and no preset
+  // may be invented. The lock needs nothing from the desk to exist.
+  assert.deepEqual(subtypes, ['childlock']);
+
+  api.emit('shutdown');
+  await settle();
+});
+
+test('the child lock switch can be turned off in the config', async () => {
+  const { EliotPlatform } = await load('dist/platform.js');
+  const { api, registered } = fakeApi();
+
+  new EliotPlatform(fakeLog, { platform: 'x', desks: [{ ...desk, childLockSwitch: false }] }, api);
+  api.emit('didFinishLaunching');
+  await settle();
+
+  const accessory = registered.registered[0]![0] as FakeAccessory;
+  assert.equal(accessory.getServiceById('Switch', 'childlock'), undefined);
 
   api.emit('shutdown');
   await settle();
