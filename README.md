@@ -5,6 +5,8 @@
 </p>
 
 <p align="center">
+  <a href="https://www.npmjs.com/package/homebridge-eliot-smart-control"><img src="https://img.shields.io/npm/v/homebridge-eliot-smart-control?label=npm" alt="npm"></a>
+  <a href="https://github.com/rummeyer/homebridge-eliot-smart-control/actions/workflows/ci.yml"><img src="https://github.com/rummeyer/homebridge-eliot-smart-control/actions/workflows/ci.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/rummeyer/homebridge-eliot-smart-control/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-blue" alt="Licence"></a>
   <img src="https://img.shields.io/badge/homebridge-%E2%89%A5%202.0.0-purple" alt="Homebridge 2.0.0+">
   <img src="https://img.shields.io/badge/node-22%20%7C%2024%20%7C%2026-green" alt="Node 22, 24 or 26">
