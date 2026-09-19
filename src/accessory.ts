@@ -42,6 +42,8 @@ export class EliotAccessory {
 
   /** Position to report instead of the real one, after a successful move. */
   #snapTo: number | null = null;
+  /** Last firmware version published, so it is only written when it changes. */
+  #firmware: number | null = null;
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
   #lockService: Service | undefined;
@@ -117,6 +119,7 @@ export class EliotAccessory {
     }
 
     this.#desk.on('change', (state) => {
+      this.#syncFirmware(state);
       this.#syncMemorySwitches(state);
       this.#publish(state);
     });
@@ -133,6 +136,29 @@ export class EliotAccessory {
 
   async stop(): Promise<void> {
     await this.#desk.close();
+  }
+
+  /**
+   * Show the control box's firmware version once it has told us.
+   *
+   * It only arrives with the settings block, which is a few hundred
+   * milliseconds after connecting — later than this accessory is built — so
+   * it is filled in here rather than in the constructor.
+   *
+   * The number is published as the desk reports it. A `10` is probably
+   * version 1.0, but nothing here has established that, and inventing a dot
+   * would turn a guess into something that looks like a reading.
+   */
+  #syncFirmware(state: DeskState): void {
+    const { firmware } = state.settings;
+    if (firmware === null || firmware === this.#firmware) {
+      return;
+    }
+    this.#firmware = firmware;
+    const { Characteristic, Service: HapService } = this.#platform.api.hap;
+    this.#accessory
+      .getService(HapService.AccessoryInformation)
+      ?.setCharacteristic(Characteristic.FirmwareRevision, String(firmware));
   }
 
   /**

@@ -36,6 +36,39 @@ export type MoveOutcome =
   /** Never started: no state, or the target was out of range. */
   | 'refused';
 
+/**
+ * The control box's own configuration, as it reports it.
+ *
+ * Every field is `null` until the settings block arrives, and the block only
+ * arrives in answer to `CONNECT`. The app keeps a copy of these on the phone
+ * and writes it to the desk when it connects, so they can change without this
+ * plugin doing anything — which is the reason for reading them back rather
+ * than remembering what was last sent.
+ */
+export interface DeskSettings {
+  /** Firmware version as the box reports it, unscaled. */
+  firmware: number | null;
+  /** Travel speed. The app offers 28, 31, 35, 38 and 40. */
+  velocity: number | null;
+  /** Eco mode. Takes effect only after the desk is reset — see README. */
+  lowPower: boolean | null;
+  /** How the desk responds to a memory button; the mapping is unconfirmed. */
+  motionMode: number | null;
+  /** Anti-collision sensitivity: `1` high, `2` medium, `3` low. */
+  sensitivity: number | null;
+  /** What the desk's own display shows. */
+  units: 'cm' | 'inch' | null;
+}
+
+const UNKNOWN_SETTINGS: DeskSettings = {
+  firmware: null,
+  velocity: null,
+  lowPower: null,
+  motionMode: null,
+  sensitivity: null,
+  units: null,
+};
+
 export interface DeskState {
   connected: boolean;
   /**
@@ -61,12 +94,12 @@ export interface DeskState {
   /**
    * Whether the desk's own child lock is on, or `null` before it has said.
    *
-   * The one setting the control box will read back on this port. Everything
-   * else the app can change — eco mode, travel speed, collision sensitivity —
-   * is write-only here, which is presumably why the app keeps its own copy of
-   * them on the phone.
+   * Unlike the fields in {@link DeskState.settings} this one answers its own
+   * command, so it is known even before the settings block arrives.
    */
   locked: boolean | null;
+  /** What the control box reports about its own configuration. */
+  settings: DeskSettings;
   /**
    * The four memory heights in millimetres, `null` where unset.
    *
@@ -185,6 +218,7 @@ export class Desk extends EventEmitter {
 
   #memories: (number | null)[] = [null, null, null, null];
   #locked: boolean | null = null;
+  #settings: DeskSettings = { ...UNKNOWN_SETTINGS };
 
   #move: {
     controller: MoveController;
@@ -233,6 +267,7 @@ export class Desk extends EventEmitter {
       target,
       moving: this.#move?.controller.direction ?? this.#native?.direction ?? null,
       locked: this.#locked,
+      settings: { ...this.#settings },
       memories: [...this.#memories],
     };
   }
@@ -283,6 +318,13 @@ export class Desk extends EventEmitter {
     }
     this.#refreshed = true;
     this.#emitChange();
+
+    // The settings block comes after readiness, deliberately. None of it feeds
+    // the height or the limits, so making the desk wait on it would delay the
+    // first trustworthy position for the sake of a firmware string.
+    if (this.#transport.connected) {
+      await this.#transport.send(Cmd.CONNECT);
+    }
   }
 
   /**
@@ -460,6 +502,18 @@ export class Desk extends EventEmitter {
     this.#log.warn(
       'this control box does not appear to know GOTO_HEIGHT — falling back to step commands',
     );
+    // Motion mode governs whether the box will drive to a position by itself,
+    // so it is the first thing to suspect here. Which value means which is not
+    // established — this desk drives happily on 0, while the published notes
+    // call 0 one-touch and the app's own labels disagree — so report the
+    // number and let whoever is reading the log compare it against the app,
+    // rather than asserting a mapping that has never been verified.
+    if (this.#settings.motionMode !== null) {
+      this.#log.warn(
+        `the desk reports motion mode ${this.#settings.motionMode}; if the app shows ` +
+          'one-touch mode switched off, switching it on may restore direct moves',
+      );
+    }
     const controller = new MoveController(native.target, from, Date.now(), this.#opts.move);
     this.#move = { controller, settle: native.settle };
     this.#tick();
@@ -652,6 +706,20 @@ export class Desk extends EventEmitter {
         this.#locked = frame.params[0] === 1;
         this.#emitChange();
         return;
+      case Report.UNITS:
+      case Report.VELOCITY:
+      case Report.LOW_POWER:
+      case Report.MOTION_MODE:
+      case Report.VERSION:
+      case Report.SENSITIVITY: {
+        // All six arrive together, as one frame each, in answer to CONNECT.
+        const value = frame.params[0];
+        if (value === undefined) {
+          return;
+        }
+        this.#onSetting(frame.command, value);
+        return;
+      }
       case Report.LIMIT_FLAGS: {
         // Bit 0 is the max limit, bit 4 the min. A limit that is not set means
         // the physical end of travel, so forget any stale value rather than
@@ -668,6 +736,43 @@ export class Desk extends EventEmitter {
       }
       default:
         return;
+    }
+  }
+
+  /**
+   * Record one field of the settings block.
+   *
+   * The block is sent whole every time, so a field that has not changed still
+   * arrives; only publish when something actually differs, or a refresh of an
+   * untouched desk would wake every subscriber for nothing.
+   */
+  #onSetting(code: number, value: number): void {
+    const before = { ...this.#settings };
+    switch (code) {
+      case Report.UNITS:
+        this.#settings.units = value === 1 ? 'inch' : 'cm';
+        break;
+      case Report.VELOCITY:
+        this.#settings.velocity = value;
+        break;
+      case Report.LOW_POWER:
+        this.#settings.lowPower = value === 1;
+        break;
+      case Report.MOTION_MODE:
+        this.#settings.motionMode = value;
+        break;
+      case Report.VERSION:
+        this.#settings.firmware = value;
+        break;
+      case Report.SENSITIVITY:
+        this.#settings.sensitivity = value;
+        break;
+      default:
+        return;
+    }
+    const key = Object.keys(before) as (keyof DeskSettings)[];
+    if (key.some((k) => before[k] !== this.#settings[k])) {
+      this.#emitChange();
     }
   }
 

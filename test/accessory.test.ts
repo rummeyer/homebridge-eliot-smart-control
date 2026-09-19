@@ -34,6 +34,8 @@ class FakeTransport extends EventEmitter implements Transport {
   connected = true;
   sent: number[] = [];
   locked = false;
+  firmware = 0x0a;
+  reportsVersion = true;
 
   async send(command: number, params?: Buffer | number[]): Promise<void> {
     this.sent.push(command);
@@ -55,6 +57,13 @@ class FakeTransport extends EventEmitter implements Transport {
     }
     if (command === Cmd.RANGE) {
       this.emit('frame', frame(Report.RANGE, [...be(1285), ...be(642)]));
+    }
+    if (command === Cmd.CONNECT) {
+      // An older control box may answer CONNECT without a version in the block.
+      if (this.reportsVersion) {
+        this.emit('frame', frame(Report.VERSION, [this.firmware]));
+      }
+      this.emit('frame', frame(Report.MOTION_MODE, [0x00]));
     }
   }
 
@@ -106,7 +115,12 @@ class FakeService {
 }
 
 class FakeAccessory {
-  services: FakeService[] = [];
+  /**
+   * Homebridge gives every accessory an information service before a plugin
+   * ever sees it, so the fake starts with one too. Without it the manufacturer
+   * and model the constructor sets went nowhere, and no test noticed.
+   */
+  services: FakeService[] = [new FakeService('AccessoryInformation')];
   context: Record<string, unknown> = {};
   getService(kind: unknown) {
     return this.services.find((s) => s.kind === String(kind));
@@ -148,8 +162,13 @@ const config = { name: 'Schreibtisch', mac: 'E5:11:22:33:44:55' };
  * Cleanup goes through the test context so it happens even when an assertion
  * fails part way through.
  */
-async function start(t: TestContext, accessory: FakeAccessory) {
+async function start(
+  t: TestContext,
+  accessory: FakeAccessory,
+  options: { reportsVersion?: boolean } = {},
+) {
   const transport = new FakeTransport();
+  transport.reportsVersion = options.reportsVersion ?? true;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
   t.after(() => handle.stop());
@@ -210,6 +229,28 @@ test('pressing a restored switch actually moves the desk', async (t) => {
 
   assert.ok(transport.sent.includes(Cmd.MOVE_2), 'the memory command was sent');
 
+});
+
+test('the firmware version comes from the desk, not from a guess', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  transport.firmware = 0x0d;
+  await transport.send(Cmd.CONNECT);
+  await tick(50);
+
+  const info = accessory.getService('AccessoryInformation')!;
+  assert.equal(info.getCharacteristic('FirmwareRevision').value, '13');
+});
+
+test('a desk that reports no version is left without one', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { reportsVersion: false });
+
+  assert.equal(
+    accessory.getService('AccessoryInformation')!.getCharacteristic('FirmwareRevision').value,
+    null,
+    'better no version than an invented one',
+  );
 });
 
 test('the child lock is a stateful switch, on from the start', async (t) => {

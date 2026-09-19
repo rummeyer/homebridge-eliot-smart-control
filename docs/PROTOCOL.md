@@ -139,8 +139,11 @@ breaks on exactly this.
 | `RESET` | `40` | 0 | Control box in RESET mode |
 | `REP_PRESET` | `92` | 1 | Moving to a preset. **Not sent on the dongle port** |
 
-Codes `05`, `06`, `17`, `1C`, `1F` appear as answers to requests but have never
-been decoded.
+The settings block that `CONNECT` answers with adds `0D`, `0E`, `0F`–`19`, `1A`,
+`1C`–`1E` and `23` as report codes; see below for which of those have a meaning.
+Codes `05`, `06` and `04` appear as answers to requests and have never been
+decoded — `04` is the one that arrives in place of the height when a second
+commander is fighting for the connection.
 
 ## Height units
 
@@ -233,16 +236,16 @@ step commands and could not stop it properly.
 |---|---|---|---|
 | `GOTO_HEIGHT` | `1B` | 2 | Drive to a height, big-endian millimetres. **Verified**: 802 → 900 mm against a target of 902, landing 2 mm out, on one command |
 | `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
-| `LOW_POWER` | `18` | 1 | `0` off, `1` on. **No measurable effect here** — see below |
+| `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
 | `MOTION_MODE` | `19` | 1 | `0` hold the button, `1` one touch |
-| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **No measurable effect here** — see below |
+| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
 | `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low |
-| `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified**, and the only setting this control box reads back |
+| `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
 | `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
 | `PUT_LIMIT_MIN` | `22` | 2 | Set the soft minimum to a height |
 | `LIMIT_CLEAR` | `23` | 1 | Clear limits: `0` both, `1` max, `2` min |
 | `VERSION` | `1C` | 0 | Control box firmware version |
-| `CONNECT` | `FE` | 0 | The app brackets configuration commands with it. Purpose unknown; everything here works without it |
+| `CONNECT` | `FE` | 0 | **Reads the whole settings block.** Not decoration — see below |
 
 `GOTO_HEIGHT` is only sent once when the desk is in one-touch mode
 (`MOTION_MODE = 1`). In hold mode the app repeats it, which is worth knowing
@@ -256,9 +259,13 @@ is the reason each one above was checked here rather than taken on trust.
 
 ### What the control box will tell you about itself
 
-Almost nothing. Asked over the dongle port, it reports height, the four memory
-positions, the travel range and the soft limits — and of every setting the app
-can change, only the child lock:
+**Correction, 19.09.2026.** This section used to say "almost nothing", and that
+was wrong — the question had simply never been asked the right way. Asked over
+the dongle port, the box reports height, the four memory positions, the travel
+range, the soft limits, the child lock, *and its entire settings block*. The
+command that fetches the last of those is `CONNECT`, described below.
+
+The child lock is still the one setting that answers its own command:
 
     → F1 F1 1F 01 00 20 7E     ask
     ← F2 F2 1F 01 00 …         unlocked
@@ -269,28 +276,72 @@ Note that `1F` is a **toggle**, not a setting: asking for the state it is
 already in would flip it. Param `0` asks, param `1` flips, and both answer with
 the state afterwards, so nothing has to be assumed.
 
-Nothing else answers. That is presumably why the app keeps its own copy of the
-speed and the eco setting in the phone's storage rather than reading them from
-the desk — a copy that is wrong the moment anyone uses another phone.
+The app does keep its own copy of the speed and the eco setting on the phone,
+and that copy is not merely a cache: **it is written to the desk whenever the
+app connects.** Observed on 19.09.2026, over a single afternoon, with nothing
+but the app being opened in between, the desk moved from `VELOCITY 21` to `40`
+to `35` and back to `21`. Anything this plugin writes can be overwritten by a
+phone in the room, which is the argument for reading settings back rather than
+remembering them.
 
-### Two commands that do nothing here
+### `CONNECT` reads the settings block
 
-Both are in the app and both are accepted without complaint; neither changes
-anything that can be measured.
+`FE` takes no parameters and is answered with one frame per setting, each
+reusing the code of the command that writes it. Captured on 19.09.2026:
 
-`VELOCITY` was tried at 40 and 28, over the same 220 mm in the same direction,
-three runs: **22.6, 22.4, 22.4 mm/s**. `LOW_POWER` was tried off, on and off
-again on the same rig: **22.2, 22.4, 22.6 mm/s**. This desk travels at 22.4
-mm/s whatever it is told.
+    → F1 F1 FE 00 FE 7E
+    ← F2 F2 0D 01 02 …      undecoded
+    ← F2 F2 0E 01 00 …      UNITS, cm
+    ← F2 F2 0F 01 00 07 …   undecoded
+    ← F2 F2 10 02 02 7B …   635, undecoded
+    ← F2 F2 11 02 02 8A …   650, undecoded
+    ← F2 F2 12 02 00 9C …   156, undecoded
+    ← F2 F2 13 01 15 …      VELOCITY, 21
+    ← F2 F2 14 01 4B …      75, undecoded
+    ← F2 F2 15 01 2D …      45, undecoded
+    ← F2 F2 16 01 64 …      100, undecoded
+    ← F2 F2 17 01 01 …      undecoded
+    ← F2 F2 18 01 01 …      LOW_POWER, on
+    ← F2 F2 19 01 00 …      MOTION_MODE
+    ← F2 F2 1C 01 0A …      VERSION
+    ← F2 F2 1D 01 02 …      SENSITIVITY, medium
+    ← F2 F2 1E 01 01 …      undecoded
+    ← F2 F2 1A 01 00 …      undecoded
+    ← F2 F2 23 04 21 92 0A 0B …  undecoded
 
-An earlier attempt appeared to show a difference and was wrong: the two runs
-covered different distances, and since the control box ramps at both ends, the
-longer run averages higher. Same direction, same distance, or the number means
-nothing.
+`VERSION` asked on its own answers a single byte, `1C 01 0A`, and nothing else.
+The block only comes from `CONNECT`, which is why the app brackets its
+configuration writes with it: it is reading back what it just wrote.
 
-`LOW_POWER` may well do what its name suggests and govern standby draw rather
-than speed, which this cannot measure and the desk will not report. Unverifiable
-in both directions is the reason neither is exposed.
+Writes do **not** need the bracket. `VELOCITY` was taken bare from 21 to 40 and
+`LOW_POWER` bare from 1 to 0, both confirmed by reading the block afterwards.
+
+### Speed and eco: stored immediately, effective after a reset
+
+An earlier version of this file claimed these two commands "do nothing here".
+They do. What they do not do is take effect straight away.
+
+The measurements that produced that claim stand: `VELOCITY` at 40 and 28 over
+the same 220 mm in the same direction gave **22.6, 22.4, 22.4 mm/s**, and
+`LOW_POWER` off, on and off gave **22.2, 22.4, 22.6 mm/s**. What was missing is
+the step the app performs and this plugin did not: the Eliot app warns, when
+either setting is changed, that **the desk must be reset before the change
+takes effect**. Reported by the desk's owner on 19.09.2026, and consistent with
+what followed — eco switched off in the app, a reset performed, and the desk
+observably faster afterwards.
+
+So the honest state of it: both settings are stored, and reading them back is
+now possible. Whether a reset makes them bite has been seen once, by eye, and
+not yet measured. Measuring it means a reset between every pair of runs, which
+is why it has not been done here.
+
+One trap for that measurement, learned the hard way: **do not hold the plugin
+off the dongle by killing its child bridge in a loop.** Homebridge restarts it
+within seconds, so a kill every two seconds produces a fresh competitor for the
+dongle's single connection every two seconds. The symptoms are a control box
+that answers queries, accepts every command, moves nothing, and streams `04`
+where the height report belongs — which looks exactly like a desk that has lost
+its calibration, and is not one.
 
 ### There is no reset command
 

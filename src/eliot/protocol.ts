@@ -77,10 +77,16 @@ export const Cmd = {
   /** Control box firmware version. */
   VERSION: 0x1c,
   /**
-   * Sent by the app before and after each configuration command.
+   * Ask the control box for its settings.
    *
-   * Its purpose is not known. This plugin does not send it, and every command
-   * it does send works without it.
+   * The app brackets each configuration command with this, which is what made
+   * it look like decoration. It is not: the box answers it with its whole
+   * settings block, one frame per field — travel speed, low power, motion
+   * mode, collision sensitivity, display units and the firmware version.
+   * Nothing else on this port will report any of them.
+   *
+   * Writing a setting does not need the bracket; a bare write is stored, and
+   * this command is how you find out that it was.
    */
   CONNECT: 0xfe,
   /** Move to memory position 3. */
@@ -107,6 +113,24 @@ export const Report = {
   LIMIT_MIN: 0x22,
   /** Child lock state: `0` unlocked, `1` locked. Answers {@link Cmd.LOCK}. */
   LOCK: 0x1f,
+  /**
+   * The settings block, answering {@link Cmd.CONNECT}.
+   *
+   * One frame per field, each reusing the code of the command that writes it.
+   * Only these six have a known meaning; the block also carries `0x0D`,
+   * `0x0F`–`0x12`, `0x14`–`0x17`, `0x1A`, `0x1E` and `0x23`, which are left
+   * undecoded rather than guessed at.
+   *
+   * `VELOCITY` and `LOW_POWER` are confirmed: both were written and read back
+   * on hardware. The other three are named from the app and have only ever
+   * been read here, so treat their meaning as likely rather than established.
+   * {@link UNITS} above belongs to this block too.
+   */
+  VELOCITY: 0x13,
+  LOW_POWER: 0x18,
+  MOTION_MODE: 0x19,
+  VERSION: 0x1c,
+  SENSITIVITY: 0x1d,
   /** Memory position 1 height. */
   POSITION_1: 0x25,
   /** Memory position 2 height. */

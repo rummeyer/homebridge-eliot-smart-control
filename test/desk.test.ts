@@ -50,6 +50,9 @@ class FakeDesk extends EventEmitter implements Transport {
   /** Clear to play an older control box that has never heard of GOTO_HEIGHT. */
   knowsGotoHeight = true;
   locked = false;
+  /** Settings the box reports back, and remembers when they are written. */
+  velocity = 21;
+  lowPower = true;
 
   #lastPulse = 0;
   #reporter: NodeJS.Timeout;
@@ -142,6 +145,30 @@ class FakeDesk extends EventEmitter implements Transport {
       this.emit('frame', report(Report.POSITION_3, be(1000)));
       this.emit('frame', report(Report.POSITION_4, be(0)));
     }
+    if (command === Cmd.CONNECT) {
+      // The settings block, as captured from an Eliot: one frame per field,
+      // in the order the box sends them, interleaved with the codes nobody
+      // has decoded — those are here on purpose, so the parser has to ignore
+      // them rather than merely never meet them.
+      this.emit('frame', report(0x0d, [0x02]));
+      this.emit('frame', report(Report.UNITS, [0x00]));
+      this.emit('frame', report(Report.VELOCITY, [this.velocity]));
+      this.emit('frame', report(0x17, [0x01]));
+      this.emit('frame', report(Report.LOW_POWER, [this.lowPower ? 1 : 0]));
+      this.emit('frame', report(Report.MOTION_MODE, [0x00]));
+      this.emit('frame', report(Report.VERSION, [0x0a]));
+      this.emit('frame', report(Report.SENSITIVITY, [0x02]));
+      this.emit('frame', report(0x23, [0x21, 0x92, 0x0a, 0x0b]));
+      return;
+    }
+    if (command === Cmd.VELOCITY && params) {
+      this.velocity = params[0];
+      return;
+    }
+    if (command === Cmd.LOW_POWER && params) {
+      this.lowPower = params[0] === 1;
+      return;
+    }
     if (command === Cmd.LOCK) {
       // Param 0 asks, param 1 flips; either way the answer is the new state.
       if (params && params[0] === 1) {
@@ -216,6 +243,45 @@ async function ready(t: TestContext, startMm = 880) {
   await tick(1400);
   return { box, desk };
 }
+
+test('the settings block is read back, undecoded fields and all', async (t) => {
+  const { desk } = await ready(t);
+  await tick(300);
+
+  assert.deepEqual(desk.state.settings, {
+    firmware: 10,
+    velocity: 21,
+    lowPower: true,
+    motionMode: 0,
+    sensitivity: 2,
+    units: 'cm',
+  });
+});
+
+test('settings arrive after the desk is usable, not before', async (t) => {
+  const { desk } = await ready(t);
+
+  // The block is what CONNECT answers, and CONNECT goes out last: a desk whose
+  // height and limits have landed is ready to drive, whether or not it has got
+  // round to saying which firmware it runs.
+  assert.equal(desk.state.ready, true);
+});
+
+test('a setting written by somebody else is picked up on the next refresh', async (t) => {
+  const { box, desk } = await ready(t);
+  await tick(300);
+  assert.equal(desk.state.settings.lowPower, true);
+
+  // The phone app writes its own stored configuration when it connects, so the
+  // desk's settings change without this plugin doing anything.
+  box.lowPower = false;
+  box.velocity = 40;
+  await desk.refresh();
+  await tick(300);
+
+  assert.equal(desk.state.settings.lowPower, false);
+  assert.equal(desk.state.settings.velocity, 40);
+});
 
 test('connecting loads height, limits and the lock state', async (t) => {
   const { box, desk } = await ready(t);

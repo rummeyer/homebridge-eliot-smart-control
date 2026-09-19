@@ -6,6 +6,29 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The control box's firmware version**, shown in the Home app's accessory
+  details instead of nothing. It is published exactly as the desk reports it:
+  this one says `10`, which is probably version 1.0, but nothing here has
+  established that and a dot would make a guess look like a reading.
+- **The desk's own settings are now read back**, not assumed. `CONNECT` (`0xFE`)
+  turns out to be the command that fetches the whole settings block — travel
+  speed, eco mode, motion mode, collision sensitivity, display units and the
+  firmware version. Until now this plugin sent it never and the protocol notes
+  called its purpose unknown.
+- **A second line in the `GOTO_HEIGHT` fallback warning**, naming the motion
+  mode the desk reports. It is the setting most likely to explain a control box
+  that will not drive itself, and the log now says which value is in force
+  rather than leaving it to be guessed at.
+
+### Changed
+
+- Nothing a user can see beyond the above. The settings are read but not yet
+  offered as switches: eco and travel speed only take effect after the desk is
+  reset, and a switch that silently needs a reset to mean anything would be
+  worse than no switch.
+
 ## [1.0.0] — 2026-09-18
 
 First stable release. Everything in it has been verified against an Eliot
