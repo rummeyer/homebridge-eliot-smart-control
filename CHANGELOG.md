@@ -6,6 +6,19 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Eco mode is a choice of three, not a checkbox**: leave the desk alone, eco
+  on, or eco off. A tickbox could not say the difference between "make this
+  desk fast" and "don't touch this desk's settings", and the plugin had to
+  treat the unticked box as the second — which meant the fast setting was the
+  one you could not ask for by unticking. *Leave the desk as it is* stays the
+  default. `true` and `false` still work, and still mean on and off.
+- **The desk's stored eco setting is logged on every connection.** Nothing else
+  can tell you: the settings page cannot reach the desk while the plugin holds
+  the dongle's only connection, and what the desk reports is what it has stored
+  rather than what it is running.
+
 ## [1.2.0] — 2026-09-21
 
 ### Added

@@ -819,8 +819,7 @@ export class Desk extends EventEmitter {
    * connection.
    */
   async #applyEco(): Promise<void> {
-    const eco = this.#opts.eco;
-    if (eco === undefined || this.#ecoApplied) {
+    if (this.#ecoApplied) {
       return;
     }
     const { lowPower, velocity } = this.#settings;
@@ -828,6 +827,21 @@ export class Desk extends EventEmitter {
       return;
     }
     this.#ecoApplied = true;
+
+    // Said on every connection, whether or not anything is configured. Nothing
+    // else can tell you: the settings page cannot read the desk, because this
+    // plugin is holding the dongle's only connection. And the desk itself will
+    // not tell you either — what it reports is what it has stored, which is not
+    // necessarily what it is running.
+    this.#log.info(
+      `the desk stores eco mode ${lowPower ? 'on' : 'off'} at travel speed ${velocity}` +
+        ' (what it is running is whatever it was last reset with)',
+    );
+
+    const eco = this.#opts.eco;
+    if (eco === undefined) {
+      return;
+    }
 
     const wantVelocity = eco ? ECO_VELOCITY : FAST_VELOCITY;
     if (lowPower === eco && velocity === wantVelocity) {

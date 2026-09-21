@@ -65,8 +65,29 @@
             },
             "ecoMode": {
               "title": "Eco mode",
-              "type": "boolean",
-              "description": "Eco mode and travel speed, written as a pair: **on** is slow and quiet, **off** is the fastest speed the Eliot app offers — roughly double.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed.\n\nUnchecked leaves the desk's own setting alone."
+              "type": "string",
+              "default": "leave",
+              "oneOf": [
+                {
+                  "title": "Leave the desk as it is",
+                  "enum": [
+                    "leave"
+                  ]
+                },
+                {
+                  "title": "On - slow and quiet",
+                  "enum": [
+                    "on"
+                  ]
+                },
+                {
+                  "title": "Off - about twice as fast",
+                  "enum": [
+                    "off"
+                  ]
+                }
+              ],
+              "description": "Eco mode and travel speed, set as a pair. Measured on an Eliot desk: 22.6 mm/s with eco on, 42.4 mm/s with it off.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says.\n\n*Leave the desk as it is* writes nothing. The plugin logs what the desk has stored each time it connects, if you want to know where it stands."
             }
           }
         }

@@ -312,7 +312,7 @@ test('eco mode is written with the travel speed that goes with it', async (t) =>
   const accessory = new FakeAccessory();
   // The box is holding eco off at 40; the config asks for eco on.
   const { transport } = await start(t, accessory, {
-    desk: { ecoMode: true },
+    desk: { ecoMode: 'on' },
   });
   transport.lowPower = 0;
   transport.velocity = 40;
@@ -321,6 +321,29 @@ test('eco mode is written with the travel speed that goes with it', async (t) =>
 
   assert.ok(transport.sent.includes(Cmd.LOW_POWER), 'eco was stored');
   assert.ok(transport.sent.includes(Cmd.VELOCITY), 'the speed went with it');
+});
+
+test('"leave" writes nothing, which is the point of having it', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { ecoMode: 'leave' } });
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(!transport.sent.includes(Cmd.LOW_POWER), 'the desk was left alone');
+  assert.ok(!transport.sent.includes(Cmd.VELOCITY), 'the desk was left alone');
+});
+
+test('a boolean still means what it meant in 1.2.0', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { ecoMode: true } });
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(transport.sent.includes(Cmd.LOW_POWER), 'true is still eco on');
 });
 
 test('a desk already holding the configured pair is not written to', async (t) => {
@@ -333,7 +356,7 @@ test('a desk already holding the configured pair is not written to', async (t) =
   const handle = new EliotAccessory(
     platform as any,
     accessory as any,
-    { ...config, ecoMode: true } as any,
+    { ...config, ecoMode: 'on' } as any,
     transport,
   );
   t.after(() => handle.stop());

@@ -46,27 +46,31 @@ export interface DeskConfig {
    */
   childLockSwitch?: boolean;
   /**
-   * Eco mode, and with it the travel speed. Left alone unless set.
+   * Eco mode, and with it the travel speed.
    *
-   * The control box stores these two together in its settings block, and this
-   * plugin writes them as a pair: eco on goes with the slowest travel the app
-   * offers, eco off with the fastest. They are not separate knobs here because
-   * they are not separate decisions — eco mode is the slow, quiet setting.
+   * Three values, not two, because "off" and "don't touch it" are different
+   * instructions and a checkbox cannot tell them apart. An unticked box would
+   * mean both "make this desk fast" and "leave this desk alone", and the plugin
+   * would have to guess which.
    *
-   * Neither takes effect when written. The box stores them and goes on running
-   * whatever it was reset with, which is why the settings block can report a
-   * value the desk is visibly not using. They come into force only when the
-   * desk is reset by hand: run it to the bottom and hold the down key until it
-   * re-homes. No command on this port can do that, and the plugin does not
-   * pretend otherwise — it writes the pair, says so in the log, and leaves the
-   * reset to whoever is standing there.
+   * - `leave` — the default. The desk's own setting is not read into anything
+   *   and nothing is written. A setting written unasked would arm a change that
+   *   fires at the owner's next reset, long after anyone connects the two.
+   * - `on` — eco mode with the slowest travel the Eliot app offers.
+   * - `off` — no eco mode, at the fastest it offers. Measured here: 22.6 mm/s
+   *   against 42.4 mm/s.
    *
-   * Undefined means the desk's own setting is left untouched, which is the
-   * default: a plugin that quietly rewrote a stored setting would be arming a
-   * change that fires at the next reset, long after anyone connected it to
-   * Homebridge.
+   * `true` and `false` are accepted as `on` and `off`, because 1.2.0 shipped
+   * this as a boolean.
+   *
+   * Neither `on` nor `off` takes effect when written. The control box stores
+   * the pair and goes on running whatever it was last reset with, so the
+   * settings it reports can differ from the speed it is visibly travelling at.
+   * They come into force only when the desk is reset by hand: run it to the
+   * bottom and hold the down key until it re-homes. No command on this port can
+   * do that, and the plugin does not pretend otherwise.
    */
-  ecoMode?: boolean;
+  ecoMode?: 'leave' | 'on' | 'off' | boolean;
 }
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -101,8 +105,12 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
   ) {
     problems.push(`${where}.idlePollSeconds must be zero or a positive number`);
   }
-  if (desk.ecoMode !== undefined && typeof desk.ecoMode !== 'boolean') {
-    problems.push(`${where}.ecoMode must be true or false`);
+  if (
+    desk.ecoMode !== undefined &&
+    typeof desk.ecoMode !== 'boolean' &&
+    !['leave', 'on', 'off'].includes(desk.ecoMode)
+  ) {
+    problems.push(`${where}.ecoMode must be "leave", "on" or "off"`);
   }
   return problems;
 }

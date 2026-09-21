@@ -33,6 +33,26 @@ const MEMORY_SLOTS = [1, 2, 3, 4];
 /** How long a momentary switch stays on before springing back. */
 const RELEASE_MS = 1_000;
 
+/**
+ * The configured eco mode as a boolean, or undefined for "leave it alone".
+ *
+ * Booleans are the 1.2.0 spelling and still mean what they meant; anything
+ * unrecognised is treated as "leave alone", which is the option that changes
+ * nothing on somebody's desk.
+ */
+function wantsEco(setting: DeskConfig['ecoMode']): boolean | undefined {
+  if (typeof setting === 'boolean') {
+    return setting;
+  }
+  if (setting === 'on') {
+    return true;
+  }
+  if (setting === 'off') {
+    return false;
+  }
+  return undefined;
+}
+
 export class EliotAccessory {
   readonly #platform: EliotPlatform;
   readonly #accessory: PlatformAccessory;
@@ -69,7 +89,7 @@ export class EliotAccessory {
     const link = transport ?? new DeskLink(config.mac, platform.log);
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
-      eco: config.ecoMode,
+      eco: wantsEco(config.ecoMode),
     });
 
     accessory
