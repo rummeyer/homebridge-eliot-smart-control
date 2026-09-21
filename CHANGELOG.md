@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.2] — 2026-09-21
+
+### Changed
+
+- **Troubleshooting now covers the `npm ERR!` wall on install.** It is
+  `usocket`, an optional native dependency of `dbus-next` by way of `node-ble`,
+  whose build uses a `node-gyp` too old for Node 22. Optional is the operative
+  word: npm reports it, carries on, and `dbus-next` uses its own socket
+  implementation — which is what this plugin has always run on.
+
 ## [1.5.1] — 2026-09-21
 
 ### Added
@@ -354,7 +364,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.1...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.2...HEAD
+[1.5.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...v1.4.0
