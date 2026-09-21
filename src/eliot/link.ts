@@ -30,11 +30,14 @@ export const CHAR_NOTIFY = '0000fe62-0000-1000-8000-00805f9b34fb';
 /**
  * Delays between reconnect attempts; the last value repeats.
  *
- * The desk is not a lamp — nobody is waiting on it at three in the morning, and
- * a dongle that has stopped answering is usually one that needs unplugging.
- * Attempts thin out rather than hammering a device that cannot be helped.
+ * Attempts thin out rather than hammering a device that cannot be helped, but
+ * they stop thinning at a minute. The usual reason the desk is unreachable is
+ * that something else holds the dongle's single connection — the Eliot app,
+ * most often — and that ends the moment the app is closed. A five-minute
+ * ceiling meant the desk stayed missing for five minutes after it was free
+ * again, with nothing to show for the wait.
  */
-const RECONNECT_BACKOFF_MS = [2_000, 5_000, 15_000, 30_000, 60_000, 120_000, 300_000];
+const RECONNECT_BACKOFF_MS = [2_000, 5_000, 15_000, 30_000, 60_000];
 
 /** How long to scan for a dongle BlueZ has never seen. */
 const DISCOVERY_TIMEOUT_MS = 30_000;

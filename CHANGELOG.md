@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Reconnect attempts now top out at a minute**, not five. The usual reason
+  the desk is unreachable is that something else holds the dongle's single
+  connection — the Eliot app, most often — and that ends the moment the app is
+  closed. The old ceiling meant the desk stayed missing for up to five minutes
+  after it was free again, with nothing to show for the wait.
+
 ## [1.1.0] — 2026-09-21
 
 ### Added
