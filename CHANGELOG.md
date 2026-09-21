@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.1] — 2026-09-21
+
 ### Added
 
 - **Funding links**: GitHub Sponsors and PayPal, in `package.json` where npm
@@ -352,7 +354,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.1...HEAD
+[1.5.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.0...v1.5.1
 [1.5.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...v1.3.0
