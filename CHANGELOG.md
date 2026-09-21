@@ -6,6 +6,22 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Automatic sit/stand movement.** Set a sitting height, a standing height, an
+  interval and the hours it applies to, and the desk alternates between them.
+  It arrives switched off behind an **Auto Movement** switch in the Home app,
+  because starting to move somebody's furniture on the strength of a config
+  file being saved is not a good first impression.
+- **A *Desk Move Soon* sensor**, tripped a few minutes before each move. It is
+  a motion sensor because HomeKit gives an accessory no way to send a
+  notification and a sensor is the one thing the Home app will offer to notify
+  about; turning that on is a one-time step in the Home app that nothing here
+  can do for you.
+- **Moving the desk by hand restarts the timer**, which makes a nudge on the
+  handset the snooze: the warning says it is about to move, you touch the
+  handset, and you have another interval.
+
 ## [1.4.0] — 2026-09-21
 
 ### Changed

@@ -1,5 +1,7 @@
 import type { PlatformConfig } from 'homebridge';
 
+import { parseWindow } from './auto-move.ts';
+
 /** One desk, as configured in Homebridge's config.json. */
 export interface DeskConfig {
   /** Display name in HomeKit. */
@@ -66,7 +68,51 @@ export interface DeskConfig {
    * do that, and the plugin does not pretend otherwise.
    */
   ecoMode?: 'leave' | 'on' | 'off' | boolean;
+  /**
+   * Move the desk between sitting and standing on a timer. Off unless set.
+   *
+   * Present only as an accessory until it is switched on in the Home app: the
+   * switch is the thing that starts it, so that turning it off is somewhere
+   * obvious rather than in a config file. Configuring it here decides what it
+   * does, not whether it is doing it.
+   */
+  autoMove?: AutoMoveConfig;
 }
+
+/** Weekday names as they appear in the config, Sunday first. */
+export const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as const;
+
+export type DayName = (typeof DAY_NAMES)[number];
+
+export interface AutoMoveConfig {
+  /** Sitting height in millimetres. */
+  sittingMm?: number;
+  /** Standing height in millimetres. */
+  standingMm?: number;
+  /** Minutes at one height before moving to the other. */
+  intervalMinutes?: number;
+  /** Minutes of warning before a move. */
+  warnMinutes?: number;
+  /**
+   * When it may move, as `"08:00-12:00"`.
+   *
+   * Strings rather than a pair of fields per row, because the Homebridge UI
+   * renders a list of text boxes and a list of nested objects very differently,
+   * and only one of them is pleasant to edit.
+   */
+  windows?: string[];
+  /** Which days it runs on. Monday to Friday unless said otherwise. */
+  days?: DayName[];
+}
+
+export const DEFAULT_AUTO_MOVE = {
+  sittingMm: 800,
+  standingMm: 1200,
+  intervalMinutes: 30,
+  warnMinutes: 5,
+  windows: ['08:00-12:00', '13:00-16:00'],
+  days: ['mon', 'tue', 'wed', 'thu', 'fri'] as DayName[],
+};
 
 export interface EliotPlatformConfig extends PlatformConfig {
   /** Homebridge uses this as the log prefix for everything this plugin says. */
@@ -104,5 +150,74 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
   ) {
     problems.push(`${where}.ecoMode must be "leave", "on" or "off"`);
   }
+  problems.push(...validateAutoMove(desk.autoMove, where));
+  return problems;
+}
+
+/**
+ * Check the auto-move block, if there is one.
+ *
+ * Every field has a default, so the only things worth complaining about are
+ * values that would make it behave in a way nobody could have meant: a sitting
+ * height above the standing one, an interval shorter than the warning that is
+ * supposed to precede it, a window that cannot be read.
+ */
+function validateAutoMove(auto: AutoMoveConfig | undefined, where: string): string[] {
+  if (auto === undefined) {
+    return [];
+  }
+  const problems: string[] = [];
+  const at = `${where}.autoMove`;
+
+  const positive = (value: number | undefined, name: string): number | undefined => {
+    if (value === undefined) {
+      return undefined;
+    }
+    if (!Number.isFinite(value) || value <= 0) {
+      problems.push(`${at}.${name} must be a positive number`);
+      return undefined;
+    }
+    return value;
+  };
+
+  const sitting = positive(auto.sittingMm, 'sittingMm');
+  const standing = positive(auto.standingMm, 'standingMm');
+  const interval = positive(auto.intervalMinutes, 'intervalMinutes');
+  const warn = positive(auto.warnMinutes, 'warnMinutes');
+
+  if (sitting !== undefined && standing !== undefined && sitting >= standing) {
+    problems.push(`${at}.sittingMm must be below standingMm`);
+  }
+  if (interval !== undefined && warn !== undefined && warn >= interval) {
+    problems.push(`${at}.warnMinutes must be shorter than intervalMinutes`);
+  }
+
+  if (auto.windows !== undefined) {
+    if (!Array.isArray(auto.windows)) {
+      problems.push(`${at}.windows must be a list like ["08:00-12:00"]`);
+    } else {
+      for (const [i, window] of auto.windows.entries()) {
+        if (typeof window !== 'string' || parseWindow(window) === null) {
+          problems.push(
+            `${at}.windows[${i}] must look like "08:00-12:00", and end after it starts ` +
+              `(got ${JSON.stringify(window)})`,
+          );
+        }
+      }
+    }
+  }
+
+  if (auto.days !== undefined) {
+    if (!Array.isArray(auto.days)) {
+      problems.push(`${at}.days must be a list of weekdays`);
+    } else {
+      for (const day of auto.days) {
+        if (!DAY_NAMES.includes(day)) {
+          problems.push(`${at}.days has ${JSON.stringify(day)}; expected one of ${DAY_NAMES.join(', ')}`);
+        }
+      }
+    }
+  }
+
   return problems;
 }

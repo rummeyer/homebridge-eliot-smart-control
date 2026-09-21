@@ -79,6 +79,80 @@
                 }
               ],
               "description": "Eco mode and travel speed, set as a pair. Measured on an Eliot desk: about 22 mm/s with eco on, 42.4 mm/s with it off.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says.\n\n*Leave the desk as it is* writes nothing. The plugin logs what the desk has stored each time it connects, if you want to know where it stands."
+            },
+            "autoMove": {
+              "title": "Automatic sit/stand",
+              "type": "object",
+              "description": "Move the desk between sitting and standing on a timer. Adds an **Auto Movement** switch to the Home app, which is what turns it on — nothing moves until you do.\n\nA **Desk Move Soon** motion sensor trips a few minutes before each move. To be told about it, open that sensor in the Home app and turn on its notifications; HomeKit gives a plugin no other way to reach you. Moving the desk by hand at any point restarts the timer, so a nudge on the handset buys you another interval.",
+              "properties": {
+                "sittingMm": {
+                  "title": "Sitting height (mm)",
+                  "type": "integer",
+                  "default": 800,
+                  "minimum": 100,
+                  "maximum": 2000,
+                  "description": "Clamped to the desk's own limits if it cannot go that far."
+                },
+                "standingMm": {
+                  "title": "Standing height (mm)",
+                  "type": "integer",
+                  "default": 1200,
+                  "minimum": 100,
+                  "maximum": 2000
+                },
+                "intervalMinutes": {
+                  "title": "Move every (minutes)",
+                  "type": "integer",
+                  "default": 30,
+                  "minimum": 1
+                },
+                "warnMinutes": {
+                  "title": "Warn before (minutes)",
+                  "type": "integer",
+                  "default": 5,
+                  "minimum": 1,
+                  "description": "Must be shorter than the interval."
+                },
+                "windows": {
+                  "title": "Working hours",
+                  "type": "array",
+                  "default": [
+                    "08:00-12:00",
+                    "13:00-16:00"
+                  ],
+                  "items": {
+                    "type": "string",
+                    "title": "Window",
+                    "placeholder": "08:00-12:00",
+                    "pattern": "^\\\\s*\\\\d{1,2}:\\\\d{2}\\\\s*-\\\\s*\\\\d{1,2}:\\\\d{2}\\\\s*$"
+                  },
+                  "description": "Outside these hours nothing moves and nothing warns."
+                },
+                "days": {
+                  "title": "Days",
+                  "type": "array",
+                  "default": [
+                    "mon",
+                    "tue",
+                    "wed",
+                    "thu",
+                    "fri"
+                  ],
+                  "uniqueItems": true,
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "mon",
+                      "tue",
+                      "wed",
+                      "thu",
+                      "fri",
+                      "sat",
+                      "sun"
+                    ]
+                  }
+                }
+              }
             }
           }
         }
@@ -100,7 +174,42 @@
         "desks[].idlePollSeconds",
         "desks[].ecoMode",
         "desks[].childLockSwitch",
-        "desks[].memorySwitches"
+        "desks[].memorySwitches",
+        {
+          "key": "desks[].autoMove",
+          "type": "fieldset",
+          "expandable": true,
+          "expanded": false,
+          "title": "Automatic sit/stand",
+          "items": [
+            "desks[].autoMove.sittingMm",
+            "desks[].autoMove.standingMm",
+            "desks[].autoMove.intervalMinutes",
+            "desks[].autoMove.warnMinutes",
+            {
+              "key": "desks[].autoMove.windows",
+              "type": "array",
+              "orderable": false,
+              "buttonText": "Add window",
+              "items": [
+                "desks[].autoMove.windows[]"
+              ]
+            },
+            {
+              "key": "desks[].autoMove.days",
+              "type": "checkboxes",
+              "titleMap": {
+                "mon": "Monday",
+                "tue": "Tuesday",
+                "wed": "Wednesday",
+                "thu": "Thursday",
+                "fri": "Friday",
+                "sat": "Saturday",
+                "sun": "Sunday"
+              }
+            }
+          ]
+        }
       ]
     }
   ],

@@ -92,6 +92,7 @@ dongle for five seconds.
 | **Memory switches** | on | Offer your stored positions as buttons. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect only after the desk is reset by hand |
+| **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
 
 Or by hand, in `config.json`:
 
@@ -107,6 +108,31 @@ Or by hand, in `config.json`:
   ]
 }
 ```
+
+## Automatic sit/stand
+
+Configure it, and the desk gains an **Auto Movement** switch. Nothing moves
+until you turn that on — the switch is the feature's on/off, so that turning it
+off is somewhere obvious rather than in a config file.
+
+Once on, inside the hours you have set, the desk alternates between your
+sitting and standing heights. It always heads for whichever of the two it is
+further from, so a desk parked halfway still does the right thing.
+
+**Moving the desk yourself restarts the timer.** That is the snooze: when the
+warning says it is about to move and you are mid-call, nudge the desk with the
+handset and you have bought another interval. It is also simply true — the
+timer measures time spent at a height, and that clock restarts when the height
+does.
+
+**Getting told about it takes one step you have to do yourself.** HomeKit gives
+a plugin no way to send a notification, so the warning is a motion sensor
+called **Desk Move Soon**. Open it in the Home app, and under *Status and
+Notifications* turn notifications on. Nothing here can do that for you, and if
+you never do it the feature still works, silently.
+
+Outside the configured hours nothing moves and no warning is raised — a phone
+buzzing at 17:05 about a move that will never happen is worse than silence.
 
 ## Things worth knowing
 

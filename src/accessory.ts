@@ -9,10 +9,13 @@
  */
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 
+import { AutoMover } from './auto-move.ts';
+import { DAY_NAMES, DEFAULT_AUTO_MOVE } from './config.ts';
 import type { DeskConfig } from './config.ts';
 import { Desk } from './eliot/desk.ts';
 import type { DeskState, MoveOutcome, Transport } from './eliot/desk.ts';
 import { DeskLink } from './eliot/link.ts';
+import { heightToPercent } from './eliot/move.ts';
 import type { EliotPlatform } from './platform.ts';
 
 /**
@@ -26,6 +29,15 @@ import type { EliotPlatform } from './platform.ts';
  * a state the user can make sense of.
  */
 const SNAP_TOLERANCE_PERCENT = 3;
+
+/**
+ * How often to ask the scheduler what it wants.
+ *
+ * Half a minute is fine: everything it decides is measured in minutes, and a
+ * warning or a move landing up to 30 s late is not something anyone could
+ * notice. It costs nothing — the poll does not touch the desk.
+ */
+const AUTO_TICK_MS = 30_000;
 
 /** The desk has four memory buttons; we mirror however many are in use. */
 const MEMORY_SLOTS = [1, 2, 3, 4];
@@ -67,6 +79,11 @@ export class EliotAccessory {
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
   #lockService: Service | undefined;
+  /** Auto-movement, when it is configured at all. */
+  #autoService: Service | undefined;
+  #warnService: Service | undefined;
+  #mover: AutoMover | undefined;
+  #autoTimer: NodeJS.Timeout | undefined;
 
   /**
    * @param transport Stand-in for the Bluetooth link. Only tests pass one;
@@ -160,6 +177,10 @@ export class EliotAccessory {
         .onSet((value) => this.#setLock(Boolean(value)));
     }
 
+    if (config.autoMove) {
+      this.#setUpAutoMove(config);
+    }
+
     this.#desk.on('change', (state) => {
       this.#syncFirmware(state);
       this.#syncMemorySwitches(state);
@@ -172,11 +193,149 @@ export class EliotAccessory {
     return this.#config.name;
   }
 
+  /**
+   * Build the auto-movement switch, its warning sensor and the scheduler.
+   *
+   * The switch is stateful and remembered in the accessory's context, because
+   * "move my desk every half hour" is a standing decision and having it reset
+   * itself whenever Homebridge restarts would be its own kind of surprise.
+   *
+   * The warning is a motion sensor for want of anything better: HomeKit gives
+   * an accessory no way to send a notification, and a sensor is the one kind of
+   * thing the Home app will offer to notify about. The owner turns that on once
+   * under the sensor's Status and Notifications; nothing here can do it for
+   * them, and if they never do, the feature still works in silence.
+   */
+  #setUpAutoMove(config: DeskConfig): void {
+    const { Characteristic, Service: HapService } = this.#platform.api.hap;
+    const auto = { ...DEFAULT_AUTO_MOVE, ...config.autoMove };
+
+    this.#mover = new AutoMover({
+      sittingMm: auto.sittingMm,
+      standingMm: auto.standingMm,
+      intervalMinutes: auto.intervalMinutes,
+      warnMinutes: auto.warnMinutes,
+      windows: auto.windows,
+      days: auto.days.map((d) => DAY_NAMES.indexOf(d)).filter((d) => d >= 0),
+    });
+    this.#mover.setEnabled(this.#accessory.context.autoMove === true);
+
+    const switchSubtype = 'automove';
+    const restoredSwitch = this.#accessory.getServiceById(HapService.Switch, switchSubtype);
+    this.#autoService =
+      restoredSwitch ?? this.#accessory.addService(HapService.Switch, 'Auto Movement', switchSubtype);
+    if (restoredSwitch) {
+      this.#unprefix(this.#autoService, 'Auto Movement');
+    } else {
+      this.#name(this.#autoService, 'Auto Movement');
+    }
+    this.#autoService
+      .getCharacteristic(Characteristic.On)
+      .onGet(() => this.#mover?.enabled ?? false)
+      .onSet((value) => this.#setAutoMove(Boolean(value)));
+
+    const sensorSubtype = 'automove-warning';
+    const restoredSensor = this.#accessory.getServiceById(HapService.MotionSensor, sensorSubtype);
+    this.#warnService =
+      restoredSensor ??
+      this.#accessory.addService(HapService.MotionSensor, 'Desk Move Soon', sensorSubtype);
+    if (restoredSensor) {
+      this.#unprefix(this.#warnService, 'Desk Move Soon');
+    } else {
+      this.#name(this.#warnService, 'Desk Move Soon');
+    }
+    this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
+
+    // A handset move is the snooze, and the only sign of a person this plugin
+    // gets. It restarts the interval wherever the countdown had got to.
+    this.#desk.on('external-move', () => {
+      if (!this.#mover?.enabled) {
+        return;
+      }
+      this.#mover.noteManualMove(Date.now());
+      this.#warn(false);
+      this.#platform.log.debug(`${this.#config.name}: moved by hand, auto-move timer restarted`);
+    });
+
+    this.#autoTimer = setInterval(() => void this.#autoTick(), AUTO_TICK_MS);
+    this.#autoTimer.unref();
+  }
+
+  #setAutoMove(on: boolean): void {
+    this.#mover?.setEnabled(on);
+    this.#accessory.context.autoMove = on;
+    this.#platform.api.updatePlatformAccessories([this.#accessory]);
+    if (!on) {
+      this.#warn(false);
+    }
+    this.#platform.log.info(`${this.#config.name}: auto movement ${on ? 'on' : 'off'}`);
+  }
+
+  /** Raise or withdraw the warning, without waking HomeKit for no change. */
+  #warn(active: boolean): void {
+    const { Characteristic } = this.#platform.api.hap;
+    this.#warnService?.setCharacteristic(Characteristic.MotionDetected, active);
+  }
+
+  /** Ask the scheduler what it wants, and do it. */
+  async #autoTick(): Promise<void> {
+    const mover = this.#mover;
+    if (!mover) {
+      return;
+    }
+    const state = this.#desk.state;
+    if (!state.connected || !state.ready) {
+      return;
+    }
+
+    const action = mover.poll(new Date(), state.heightMm, state.moving !== null);
+    if (action.kind === 'none') {
+      return;
+    }
+    if (action.kind === 'warn') {
+      this.#warn(true);
+      this.#platform.log.info(
+        `${this.#config.name}: moving in ${action.inMinutes} minutes — ` +
+          'nudge the desk with the handset to put it off',
+      );
+      return;
+    }
+    if (action.kind === 'clear') {
+      this.#warn(false);
+      return;
+    }
+
+    this.#warn(false);
+    if (state.minMm === null || state.maxMm === null) {
+      return;
+    }
+    // The desk's own limits win. A sitting height configured below what this
+    // desk will go to is not an error worth refusing over — the desk simply
+    // cannot honour it, and going as low as it does is what was meant.
+    if (action.heightMm < state.minMm || action.heightMm > state.maxMm) {
+      this.#platform.log.warn(
+        `${this.#config.name}: ${action.to} is set to ${action.heightMm} mm, outside the ` +
+          `desk's ${state.minMm}–${state.maxMm} mm; going as far as it will`,
+      );
+    }
+    this.#platform.log.info(`${this.#config.name}: auto movement to ${action.to}`);
+    const outcome = await this.#desk.moveTo(
+      heightToPercent(action.heightMm, state.minMm, state.maxMm),
+    );
+    if (outcome !== 'arrived') {
+      this.#platform.log.warn(`${this.#config.name}: auto movement ended as ${outcome}`);
+    }
+  }
+
   async start(): Promise<void> {
     await this.#desk.start();
   }
 
   async stop(): Promise<void> {
+    if (this.#autoTimer) {
+      clearInterval(this.#autoTimer);
+      this.#autoTimer = undefined;
+    }
     await this.#desk.close();
   }
 

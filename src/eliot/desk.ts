@@ -226,6 +226,13 @@ interface NativeMove {
 export interface Desk {
   on(event: 'change', listener: (state: DeskState) => void): this;
   on(event: 'move-end', listener: (outcome: MoveOutcome) => void): this;
+  /**
+   * The desk moved and it was not us: the handset, or somebody leaning on it.
+   *
+   * Carries the height it ended up at. Anything that wants to know a human is
+   * present listens to this — it is the only evidence of that the plugin has.
+   */
+  on(event: 'external-move', listener: (heightMm: number) => void): this;
 }
 
 export class Desk extends EventEmitter {
@@ -900,6 +907,7 @@ export class Desk extends EventEmitter {
     // the desk being dragged back to a target it never agreed to.
     if (resting !== null) {
       this.#log.debug(`moved elsewhere: ${resting} → ${heightMm} mm`);
+      this.emit('external-move', heightMm);
     }
     this.#restingMm = heightMm;
     this.#targetMm = heightMm;

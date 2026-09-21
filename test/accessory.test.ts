@@ -439,6 +439,46 @@ test('a switch renamed in the Home app keeps its name across a restart', async (
   );
 });
 
+test('auto movement is off until the switch is turned on', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: {} } });
+
+  const auto = accessory.getServiceById('Switch', 'automove');
+  assert.ok(auto, 'the switch exists');
+  assert.equal(await auto.getCharacteristic('On').handlers.get?.(), false);
+  assert.ok(accessory.getServiceById('MotionSensor', 'automove-warning'), 'and the sensor');
+});
+
+test('the auto movement switch is remembered across a restart', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: {} } });
+
+  await accessory
+    .getServiceById('Switch', 'automove')!
+    .getCharacteristic('On')
+    .handlers.set?.(true);
+  assert.equal(accessory.context.autoMove, true, 'persisted for the next start');
+
+  const restarted = new FakeAccessory();
+  restarted.services = accessory.services;
+  restarted.context = { ...accessory.context };
+  await start(t, restarted, { desk: { autoMove: {} } });
+
+  assert.equal(
+    await restarted.getServiceById('Switch', 'automove')!.getCharacteristic('On').handlers.get?.(),
+    true,
+    'a standing decision, not one that resets when Homebridge does',
+  );
+});
+
+test('no auto movement accessories unless it is configured', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory);
+
+  assert.equal(accessory.getServiceById('Switch', 'automove'), undefined);
+  assert.equal(accessory.getServiceById('MotionSensor', 'automove-warning'), undefined);
+});
+
 test('the child lock is a stateful switch, on from the start', async (t) => {
   const accessory = new FakeAccessory();
   const { transport } = await start(t, accessory);
