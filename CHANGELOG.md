@@ -6,15 +6,17 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.2.0] — 2026-09-21
+
 ### Added
 
 - **Eco mode as a setting**, off by default and left alone unless you set it.
   It writes eco and travel speed as a pair — eco on with the slowest travel the
   Eliot app offers, eco off with the fastest — because they are one decision
   rather than two. It is worth having: measured on hardware, the pair takes the
-  desk from 22.6 mm/s to 42.4 mm/s once the desk has been reset. The desk stores both and goes on running whatever it was
-  last reset with, so the log says plainly that a manual reset is needed and
-  does not pretend the setting took effect.
+  desk from 22.6 mm/s to 42.4 mm/s. The desk stores both and goes on running
+  whatever it was last reset with, so the log says plainly that a manual reset
+  is needed and does not pretend the setting took effect.
 
 ### Fixed
 
@@ -182,7 +184,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.1.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...HEAD
+[1.2.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.5.0...v1.0.0
 [0.5.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.4.0...v0.5.0
