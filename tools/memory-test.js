@@ -62,6 +62,14 @@ if (!link.connected) { console.error('nicht verbunden (60s)'); await link.close(
 await link.send(Cmd.WAKE); await sleep(800);
 await link.send(Cmd.SETTINGS); await sleep(1200);
 
+// The box answers SETTINGS with a height and never sends one unprompted, so
+// without this the desk can drive its whole travel while this tool watches a
+// height that never changes and calls it "did not move".
+const poller = setInterval(() => {
+  link.send(Cmd.SETTINGS).catch(() => {});
+}, 400);
+process.on('exit', () => clearInterval(poller));
+
 const target = memories[SLOT];
 say(`memories: ${JSON.stringify(memories)}`);
 say(`start ${height} mm, ziel memory ${SLOT} = ${target} mm`);

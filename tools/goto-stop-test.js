@@ -70,6 +70,14 @@ if (!link.connected) { console.error('nicht verbunden'); await link.close(); pro
 await link.send(Cmd.WAKE); await sleep(700);
 await link.send(Cmd.SETTINGS); await sleep(1000);
 await link.send(Cmd.LIMITS); await sleep(1200);
+
+// The box does not stream its height; SETTINGS is answered with one. Without
+// this poll `settle()` sees a height that never changes and calls every move a
+// failure — including the ones that worked.
+const poller = setInterval(() => {
+  link.send(Cmd.SETTINGS).catch(() => {});
+}, 400);
+process.on('exit', () => clearInterval(poller));
 say(`start ${height} mm, erlaubt ${softMin}–${softMax} mm`);
 
 if (height === null || softMin === null || softMax === null) {

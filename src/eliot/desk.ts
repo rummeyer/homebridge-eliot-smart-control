@@ -114,10 +114,10 @@ export interface DeskOptions {
   /**
    * How often to ask for the height while idle.
    *
-   * The control box reports height unprompted while it moves, so this is only
-   * for what happens in between: someone using the handset, or a desk that was
-   * moved while we were disconnected. Cheap, and the alternative is a Home app
-   * showing a height from an hour ago.
+   * The control box never reports its height unprompted — not while moving,
+   * not after a command. `SETTINGS` (`0x07`) is answered with one, and that is
+   * the only way a height arrives. So this is not a backstop for the handset,
+   * it is the sole source of position whenever nothing else is asking.
    */
   idlePollMs: number;
   /**
@@ -156,9 +156,51 @@ export interface DeskOptions {
   nativeStartMs: number;
   /** How far off a memory height still counts as being at that preset. */
   memoryToleranceMm: number;
+  /**
+   * Eco mode to store on the desk, with the travel speed that goes with it.
+   *
+   * `undefined` leaves the desk's own setting alone, which is the default and
+   * the only honest one: writing it stores a change that takes effect at the
+   * next reset, which may be weeks away and nowhere near this decision.
+   */
+  eco?: boolean;
+  /**
+   * Store one-touch mode, so the box drives to a position by itself.
+   *
+   * On by default, because everything this plugin offers beyond raise and
+   * lower depends on it: a memory switch, a target height, anything the Home
+   * app fires and walks away from. On hold-to-move the box expects the button
+   * held, so a preset command produces a nudge and stops.
+   *
+   * It is stored even when the desk appears to be driving itself, and that is
+   * the point. A box can run one-touch for months while storing `0`, and then
+   * the next reset — for any reason — makes the stored value live and every
+   * preset quietly stops working. Storing `1` disarms that.
+   *
+   * Set it false to leave the desk's own setting alone: hold-to-move is a
+   * deliberate choice in some houses, and it is not this plugin's to overrule.
+   */
+  oneTouch: boolean;
 }
 
+/**
+ * The travel speeds that go with eco on and eco off.
+ *
+ * The app offers 28, 31, 35, 38 and 40 and nothing outside that, so these are
+ * its ends rather than the box's: this desk was found storing 21, below
+ * anything the app will produce, which says the box accepts more than the app
+ * offers and says nothing about what is good for it. Staying inside the range
+ * the manufacturer's own app uses is the conservative choice for a value that
+ * only takes effect after a reset, where a bad one is discovered late.
+ */
+/** Motion mode where the control box drives to a position on its own. */
+const ONE_TOUCH = 1;
+
+const ECO_VELOCITY = 28;
+const FAST_VELOCITY = 40;
+
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
+  oneTouch: true,
   idlePollMs: 30_000,
   externalMoveMm: 15,
   settleMs: 3000,
@@ -233,6 +275,10 @@ export class Desk extends EventEmitter {
   #settleUntil = 0;
   #closing = false;
   #refreshed = false;
+  /** Whether the configured eco pair has been dealt with on this connection. */
+  #ecoApplied = false;
+  /** Whether one-touch has been dealt with on this connection. */
+  #oneTouchApplied = false;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -774,6 +820,83 @@ export class Desk extends EventEmitter {
     if (key.some((k) => before[k] !== this.#settings[k])) {
       this.#emitChange();
     }
+    void this.#applyEco();
+    void this.#applyOneTouch();
+  }
+
+  /**
+   * Store one-touch mode unless the desk already has it, or it was declined.
+   *
+   * Like the eco pair this only takes effect at the next reset, so it cannot
+   * rescue a desk that is ignoring its presets today. What it does is make sure
+   * the next reset does not introduce the problem — or, on a desk already stuck
+   * in hold-to-move, that a reset is all it takes to fix.
+   */
+  async #applyOneTouch(): Promise<void> {
+    if (!this.#opts.oneTouch || this.#oneTouchApplied) {
+      return;
+    }
+    const { motionMode } = this.#settings;
+    if (motionMode === null) {
+      return;
+    }
+    this.#oneTouchApplied = true;
+    if (motionMode === ONE_TOUCH || !this.#transport.connected) {
+      return;
+    }
+
+    await this.#transport.send(Cmd.MOTION_MODE, [ONE_TOUCH]);
+    this.#log.warn(
+      `the desk stores motion mode ${motionMode}, which is hold-to-move: a memory switch ` +
+        'or a target height nudges it and stops. One-touch has been stored instead, and ' +
+        'takes effect when the desk is next reset by hand — drive it to the bottom and ' +
+        'hold the down key until it re-homes. Set oneTouch to false to leave it alone.',
+    );
+  }
+
+  /**
+   * Store the configured eco pair, if the desk is not already holding it.
+   *
+   * Runs once per connection and only when something differs, because the
+   * write is not free: the box stores it and keeps running what it was last
+   * reset with, so every write leaves a change primed to go off at a reset that
+   * may be weeks away. Writing the same values again on every reconnect would
+   * be harmless in effect and dishonest in the log, which is where anyone will
+   * go looking when the desk changes speed for no reason they can remember.
+   *
+   * Both fields have to have arrived before this can tell whether anything
+   * differs, which is why it hangs off the settings block rather than the
+   * connection.
+   */
+  async #applyEco(): Promise<void> {
+    const eco = this.#opts.eco;
+    if (eco === undefined || this.#ecoApplied) {
+      return;
+    }
+    const { lowPower, velocity } = this.#settings;
+    if (lowPower === null || velocity === null) {
+      return;
+    }
+    this.#ecoApplied = true;
+
+    const wantVelocity = eco ? ECO_VELOCITY : FAST_VELOCITY;
+    if (lowPower === eco && velocity === wantVelocity) {
+      return;
+    }
+    if (!this.#transport.connected) {
+      return;
+    }
+
+    await this.#transport.send(Cmd.LOW_POWER, [eco ? 1 : 0]);
+    await delay(300);
+    await this.#transport.send(Cmd.VELOCITY, [wantVelocity]);
+
+    this.#log.warn(
+      `eco mode ${eco ? 'on' : 'off'} and travel speed ${wantVelocity} stored on the desk ` +
+        `(it had ${lowPower ? 'on' : 'off'} and ${velocity}). The desk keeps running its ` +
+        'old setting until it is reset by hand: drive it to the bottom and hold the down ' +
+        'key until it re-homes. No command can do this.',
+    );
   }
 
   #onHeight(heightMm: number): void {
@@ -832,6 +955,8 @@ export class Desk extends EventEmitter {
     // The desk may be moved by hand while we are away, so nothing we hold is
     // trustworthy until it has been asked again.
     this.#refreshed = false;
+    this.#ecoApplied = false;
+    this.#oneTouchApplied = false;
     this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');

@@ -330,10 +330,19 @@ takes effect**. Reported by the desk's owner on 19.09.2026, and consistent with
 what followed — eco switched off in the app, a reset performed, and the desk
 observably faster afterwards.
 
-So the honest state of it: both settings are stored, and reading them back is
-now possible. Whether a reset makes them bite has been seen once, by eye, and
-not yet measured. Measuring it means a reset between every pair of runs, which
-is why it has not been done here.
+**A reset does make them bite; that much is now established.** On 21.09.2026
+`LOW_POWER 1` and `VELOCITY 21` were stored on a desk visibly running eco off at
+40, a reset was performed, and the desk came back slow. The settings block is a
+record of what the box has been *told*, and the box goes on running what it was
+last reset with — which is why it can report a value the desk is plainly not
+using.
+
+What is **not** established is how much faster it gets. Every speed figure taken
+that day (24.3, 16.8, 12.1 mm/s) was measured by pulsing `RAISE`, in three
+different and partly unknown drive states, and none of them is comparable to
+another or to the 22.2–22.6 mm/s of the earlier runs. A number worth recording
+needs `GOTO_HEIGHT`, where the box runs its own ramp — and that needs a control
+box that will drive itself, which this one stopped doing (see below).
 
 One trap for that measurement, learned the hard way: **do not hold the plugin
 off the dongle by killing its child bridge in a loop.** Homebridge restarts it
@@ -343,6 +352,65 @@ that answers queries, accepts every command, moves nothing, and streams `04`
 where the height report belongs — which looks exactly like a desk that has lost
 its calibration, and is not one.
 
+### The control box never reports its height unprompted
+
+Not while moving, not after a command, never. `SETTINGS` (`0x07`) is answered
+with a `HEIGHT` frame, and that is the only way a height arrives.
+
+This was assumed the other way round for a long time, and it is written into
+`idlePollSeconds` as "the desk reports by itself while moving". It does not.
+Every tool here that drove the desk without polling was measuring blind: it
+watched a height that never changed and concluded the desk had not moved. One
+of them concluded that for forty-five seconds while pulsing `RAISE`, and drove
+the desk into its top stop hard enough to cost it its calibration.
+
+Anything that drives this desk must poll, and must refuse to drive when it has
+no height to poll for.
+
+### Unsolved: the control box stopped driving itself
+
+On the morning of 21.09.2026 this desk drove itself. One `MOVE_1` at 08:23:14
+and it arrived at 802 mm twelve seconds later, with nothing else sent in
+between — the log shows the single frame. By that evening the same command
+moved it six millimetres and stopped, and so did `GOTO_HEIGHT`. It has not
+driven itself since.
+
+`MOTION_MODE` (`0x19`) is the obvious suspect and does not survive the
+evidence. The Jarvis notes give `0` as hold-to-move and `1` as one-touch, and
+one-touch is what makes a box drive to a position unattended:
+
+| when | stored `0x19` | `MOVE_n` over the dongle |
+|---|---|---|
+| before any reset | `0` | drove fully |
+| after reset 1 | `0` | nudge, ~10 mm |
+| after reset 2 | `1` | nudge |
+| after a mains power cycle | `1` | nudge |
+| after reset 3 | `1` | nudge |
+
+Neither value predicts the behaviour. Reset 3 demonstrably committed the rest
+of the block — the desk came back slow, from the eco and velocity stored before
+it — so the stored `1` was made live and self-driving still did not return.
+
+Other things observed the same day, none of them explained:
+
+- `0x18` read back as `1` after a mains power cycle, having been `0` before it,
+  with nothing written in between. The stored block is not as stable as the
+  rest of these notes assume.
+- Between the first reset and the last, the box twice lost its zero and
+  streamed `0x04` where the height belongs. Both times it was being driven by
+  repeated step commands.
+- A handset re-home restores the zero. Whether it commits the stored block was
+  not established; reset 3, which the box itself asked for, did.
+
+What has not been tried is the app's *Automatischer Reset*, which writes the
+phone's stored configuration to the desk before resetting it. That is the one
+operation known to have produced a self-driving desk, and the difference
+between it and a hand re-home is the most promising place to look next.
+
+Until this is understood, a plugin cannot assume `GOTO_HEIGHT` will drive a
+desk that answered it yesterday. The step fallback is not a legacy path for old
+control boxes; it is what keeps this one working.
+
 ### There is no reset command
 
 The app's *Automatischer Reset* is not a protocol command at all. Its own
@@ -351,6 +419,16 @@ warning says what it does: *"Der Tisch wird selbstständig auf eine Höhe von ca
 to the bottom so the control box can find its zero again. Soft limits and
 memory positions survive it. `0x91 CALIBRATE` from the Jarvis notes appears
 nowhere in the app.
+
+**`0x91` was tried, on 21.09.2026, and does nothing observable.** Sent to a
+healthy desk it produces no answer, no `0x40`, and no change on the handset,
+with the link held open for 45 s. It was briefly believed to work: it was first
+sent to a box that had lost its zero, whose handset was already showing RESET
+and asking to be re-homed, and the two were mistaken for cause and effect.
+
+The re-home itself is done by hand and cannot be triggered from here: run the
+desk to the bottom and keep holding the down key until it re-seats. That works
+without the app.
 
 ## The consequence for HomeKit
 

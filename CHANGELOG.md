@@ -6,6 +6,30 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Eco mode as a setting**, off by default and left alone unless you set it.
+  It writes eco and travel speed as a pair — eco on with the slowest travel the
+  Eliot app offers, eco off with the fastest — because they are one decision
+  rather than two. The desk stores both and goes on running whatever it was
+  last reset with, so the log says plainly that a manual reset is needed and
+  does not pretend the setting took effect.
+- **One-touch mode is stored by default.** Everything past raise and lower
+  needs the control box to drive to a position by itself: memory switches,
+  target heights, any move the Home app starts and stops watching. A desk can
+  run one-touch for months while *storing* hold-to-move, and lose every preset
+  at a reset nobody connects to it. Storing it disarms that. Turn it off if
+  hold-to-move is deliberate — that is a safety choice, not this plugin's call.
+
+### Fixed
+
+- **`idlePollSeconds` is documented correctly.** It claimed the desk reports
+  its height by itself while moving. It never does: the control box answers
+  `SETTINGS` with a height and sends nothing unprompted, so that poll is the
+  only source of position rather than a backstop for the handset. The wrong
+  assumption is why several tools in `tools/` drove the desk while watching a
+  height that could not change.
+
 ## [1.1.0] — 2026-09-21
 
 ### Added

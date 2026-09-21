@@ -15,9 +15,10 @@ export interface DeskConfig {
   /**
    * How often to ask an idle desk for its height, in seconds. 0 disables it.
    *
-   * The control box reports height by itself while moving, so this only
-   * catches what happens in between: somebody using the handset, or the desk
-   * being moved while Homebridge was not connected.
+   * The control box does not report its height by itself — not even while
+   * moving. `SETTINGS` (`0x07`) is answered with one, and that is the only way
+   * a height ever arrives. So this is not a backstop for the handset; it is
+   * the whole source of position while nothing else is asking.
    */
   idlePollSeconds?: number;
   /**
@@ -41,6 +42,43 @@ export interface DeskConfig {
    * the only one that can be shown honestly rather than remembered.
    */
   childLockSwitch?: boolean;
+  /**
+   * Eco mode, and with it the travel speed. Left alone unless set.
+   *
+   * The control box stores these two together in its settings block, and this
+   * plugin writes them as a pair: eco on goes with the slowest travel the app
+   * offers, eco off with the fastest. They are not separate knobs here because
+   * they are not separate decisions — eco mode is the slow, quiet setting.
+   *
+   * Neither takes effect when written. The box stores them and goes on running
+   * whatever it was reset with, which is why the settings block can report a
+   * value the desk is visibly not using. They come into force only when the
+   * desk is reset by hand: run it to the bottom and hold the down key until it
+   * re-homes. No command on this port can do that, and the plugin does not
+   * pretend otherwise — it writes the pair, says so in the log, and leaves the
+   * reset to whoever is standing there.
+   *
+   * Undefined means the desk's own setting is left untouched, which is the
+   * default: a plugin that quietly rewrote a stored setting would be arming a
+   * change that fires at the next reset, long after anyone connected it to
+   * Homebridge.
+   */
+  ecoMode?: boolean;
+  /**
+   * Store one-touch mode on the desk. On unless set to false.
+   *
+   * Everything this plugin offers beyond raise and lower needs the control box
+   * to drive to a position by itself: memory switches, a target height, any
+   * move the Home app starts and then stops watching. Hold-to-move turns those
+   * into a nudge.
+   *
+   * Like {@link ecoMode} it is stored rather than applied, and takes effect at
+   * the desk's next manual reset. It is written even on a desk that is visibly
+   * driving itself, because the stored value is what the *next* reset makes
+   * live — a box running one-touch while storing hold-to-move is one reset away
+   * from silently losing every preset.
+   */
+  oneTouch?: boolean;
 }
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -74,6 +112,12 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
     (!Number.isFinite(desk.idlePollSeconds) || desk.idlePollSeconds < 0)
   ) {
     problems.push(`${where}.idlePollSeconds must be zero or a positive number`);
+  }
+  if (desk.ecoMode !== undefined && typeof desk.ecoMode !== 'boolean') {
+    problems.push(`${where}.ecoMode must be true or false`);
+  }
+  if (desk.oneTouch !== undefined && typeof desk.oneTouch !== 'boolean') {
+    problems.push(`${where}.oneTouch must be true or false`);
   }
   return problems;
 }

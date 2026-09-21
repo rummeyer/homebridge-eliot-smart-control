@@ -69,6 +69,8 @@ export class EliotAccessory {
     const link = transport ?? new DeskLink(config.mac, platform.log);
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
+      eco: config.ecoMode,
+      oneTouch: config.oneTouch ?? true,
     });
 
     accessory

@@ -36,6 +36,10 @@ class FakeTransport extends EventEmitter implements Transport {
   locked = false;
   firmware = 0x0a;
   reportsVersion = true;
+  /** What the box has *stored* — not necessarily what it is running. */
+  velocity = 21;
+  lowPower = 1;
+  motionMode = 0x00;
 
   async send(command: number, params?: Buffer | number[]): Promise<void> {
     this.sent.push(command);
@@ -63,7 +67,9 @@ class FakeTransport extends EventEmitter implements Transport {
       if (this.reportsVersion) {
         this.emit('frame', frame(Report.VERSION, [this.firmware]));
       }
-      this.emit('frame', frame(Report.MOTION_MODE, [0x00]));
+      this.emit('frame', frame(Report.MOTION_MODE, [this.motionMode]));
+      this.emit('frame', frame(Report.VELOCITY, [this.velocity]));
+      this.emit('frame', frame(Report.LOW_POWER, [this.lowPower]));
     }
   }
 
@@ -170,12 +176,18 @@ const config = { name: 'Schreibtisch', mac: 'E5:11:22:33:44:55' };
 async function start(
   t: TestContext,
   accessory: FakeAccessory,
-  options: { reportsVersion?: boolean } = {},
+  options: { reportsVersion?: boolean; desk?: Record<string, unknown> } = {},
 ) {
   const transport = new FakeTransport();
   transport.reportsVersion = options.reportsVersion ?? true;
+  const deskConfig = { ...config, ...(options.desk ?? {}) };
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
+  const handle = new EliotAccessory(
+    platform as any,
+    accessory as any,
+    deskConfig as any,
+    transport,
+  );
   t.after(() => handle.stop());
   await handle.start();
   await tick(1500);
@@ -285,6 +297,84 @@ test('a desk that reports no version is left without one', async (t) => {
     accessory.getService('AccessoryInformation')!.getCharacteristic('FirmwareRevision').value,
     null,
     'better no version than an invented one',
+  );
+});
+
+test('an unconfigured eco mode leaves the desk alone', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+
+  assert.ok(!transport.sent.includes(Cmd.LOW_POWER), 'nothing was stored');
+  assert.ok(!transport.sent.includes(Cmd.VELOCITY), 'nothing was stored');
+});
+
+test('eco mode is written with the travel speed that goes with it', async (t) => {
+  const accessory = new FakeAccessory();
+  // The box is holding eco off at 40; the config asks for eco on.
+  const { transport } = await start(t, accessory, {
+    desk: { ecoMode: true },
+  });
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(transport.sent.includes(Cmd.LOW_POWER), 'eco was stored');
+  assert.ok(transport.sent.includes(Cmd.VELOCITY), 'the speed went with it');
+});
+
+test('a desk already holding the configured pair is not written to', async (t) => {
+  const accessory = new FakeAccessory();
+  const transport = new FakeTransport();
+  // Eco on at 28 is exactly what ecoMode: true asks for.
+  transport.lowPower = 1;
+  transport.velocity = 28;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(
+    platform as any,
+    accessory as any,
+    { ...config, ecoMode: true } as any,
+    transport,
+  );
+  t.after(() => handle.stop());
+  await handle.start();
+  await tick(600);
+
+  assert.ok(
+    !transport.sent.includes(Cmd.LOW_POWER),
+    'a write would prime a change for the next reset, for nothing',
+  );
+});
+
+test('a desk storing hold-to-move has one-touch stored for it', async (t) => {
+  // The fake stores motion mode 0, which is the landmine: the box may well be
+  // driving itself today and lose every preset at its next reset.
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+
+  assert.ok(transport.sent.includes(Cmd.MOTION_MODE), 'one-touch was stored');
+});
+
+test('a desk already storing one-touch is left alone', async (t) => {
+  const accessory = new FakeAccessory();
+  const transport = new FakeTransport();
+  transport.motionMode = 0x01;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
+  t.after(() => handle.stop());
+  await handle.start();
+  await tick(600);
+
+  assert.ok(!transport.sent.includes(Cmd.MOTION_MODE), 'nothing to write');
+});
+
+test('one-touch can be declined, because hold-to-move can be deliberate', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { oneTouch: false } });
+
+  assert.ok(
+    !transport.sent.includes(Cmd.MOTION_MODE),
+    'a safety setting is not the plugin\'s to overrule',
   );
 });
 

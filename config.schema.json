@@ -40,7 +40,7 @@
               "type": "integer",
               "default": 30,
               "minimum": 0,
-              "description": "How often to ask a standing desk for its height. The desk reports by itself while moving, so this only catches the handset being used. 0 turns it off."
+              "description": "Wie oft ein stehender Tisch nach seiner Höhe gefragt wird. Die Controlbox meldet die Höhe nie von selbst — auch nicht während der Fahrt —, sie antwortet nur auf Nachfrage. Das hier ist also die einzige Quelle für die Position, solange sonst niemand fragt. 0 schaltet es ab."
             },
             "memorySwitches": {
               "title": "Memory-Schalter",
@@ -62,6 +62,17 @@
               "type": "boolean",
               "default": true,
               "description": "Die Kindersicherung des Tisches in der Home-App anbieten. Sie ist die einzige Einstellung, die die Controlbox zurückmeldet, also die einzige, die ehrlich angezeigt werden kann."
+            },
+            "ecoMode": {
+              "title": "Eco-Modus",
+              "type": "boolean",
+              "description": "Eco-Modus des Tisches, zusammen mit der Fahrgeschwindigkeit: **an** = langsam und leise (Stufe 28), **aus** = die schnellste Stufe, die die Eliot-App anbietet (40). Beides gehört zusammen und wird deshalb als Paar geschrieben.\n\n**Wirkt erst nach einem Reset des Tisches.** Die Controlbox speichert die Einstellung sofort, fährt aber weiter mit dem Wert, mit dem sie zuletzt zurückgesetzt wurde — deshalb kann der Tisch eine Einstellung melden, die er sichtbar nicht benutzt. Scharf wird sie erst so: den Tisch ganz nach unten fahren und die Ab-Taste weiter gedrückt halten, bis er von selbst nach unten fährt und sich neu einmisst. Kein Kommando kann das auslösen, auch dieses Plugin nicht.\n\nOhne Häkchen wird die Einstellung des Tisches nicht angefasst. Das ist die Voreinstellung: eine ungefragt geschriebene Einstellung würde beim nächsten Reset losgehen, lange nachdem irgendwer sie mit Homebridge in Verbindung bringt."
+            },
+            "oneTouch": {
+              "title": "One-Touch-Modus erzwingen",
+              "type": "boolean",
+              "default": true,
+              "description": "Speichert auf dem Tisch, dass die Controlbox Positionen selbst anfährt. Alles außer Hoch und Runter hängt daran: Memory-Schalter, Zielhöhen, jede Fahrt, die die Home-App startet und dann sich selbst überlässt. Im Halte-Modus erwartet die Box, dass eine Taste gedrückt bleibt — ein Memory-Befehl bewegt den Tisch dann ein paar Millimeter und hört auf.\n\nWird auch dann geschrieben, wenn der Tisch sichtbar von selbst fährt, und genau das ist der Sinn: Die Box kann monatelang One-Touch laufen und dabei den Halte-Modus *gespeichert* haben. Beim nächsten Reset wird der gespeicherte Wert scharf, und sämtliche Memory-Schalter hören ohne erkennbaren Grund auf zu funktionieren.\n\nWirkt — wie der Eco-Modus — erst nach einem Reset von Hand. Abschalten, wenn der Halte-Modus Absicht ist; das ist eine Sicherheitsentscheidung, die dieses Plugin nicht übergehen sollte."
             }
           }
         }
@@ -81,6 +92,8 @@
         "desks[].name",
         "desks[].mac",
         "desks[].idlePollSeconds",
+        "desks[].oneTouch",
+        "desks[].ecoMode",
         "desks[].childLockSwitch",
         "desks[].memorySwitches",
         {
