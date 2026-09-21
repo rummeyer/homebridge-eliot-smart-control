@@ -346,38 +346,6 @@ test('a desk already holding the configured pair is not written to', async (t) =
   );
 });
 
-test('a desk storing hold-to-move has one-touch stored for it', async (t) => {
-  // The fake stores motion mode 0, which is the landmine: the box may well be
-  // driving itself today and lose every preset at its next reset.
-  const accessory = new FakeAccessory();
-  const { transport } = await start(t, accessory);
-
-  assert.ok(transport.sent.includes(Cmd.MOTION_MODE), 'one-touch was stored');
-});
-
-test('a desk already storing one-touch is left alone', async (t) => {
-  const accessory = new FakeAccessory();
-  const transport = new FakeTransport();
-  transport.motionMode = 0x01;
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
-  t.after(() => handle.stop());
-  await handle.start();
-  await tick(600);
-
-  assert.ok(!transport.sent.includes(Cmd.MOTION_MODE), 'nothing to write');
-});
-
-test('one-touch can be declined, because hold-to-move can be deliberate', async (t) => {
-  const accessory = new FakeAccessory();
-  const { transport } = await start(t, accessory, { desk: { oneTouch: false } });
-
-  assert.ok(
-    !transport.sent.includes(Cmd.MOTION_MODE),
-    'a safety setting is not the plugin\'s to overrule',
-  );
-});
-
 test('the child lock is a stateful switch, on from the start', async (t) => {
   const accessory = new FakeAccessory();
   const { transport } = await start(t, accessory);

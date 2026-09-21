@@ -67,21 +67,6 @@ export interface DeskConfig {
    * Homebridge.
    */
   ecoMode?: boolean;
-  /**
-   * Store one-touch mode on the desk. On unless set to false.
-   *
-   * Everything this plugin offers beyond raise and lower needs the control box
-   * to drive to a position by itself: memory switches, a target height, any
-   * move the Home app starts and then stops watching. Hold-to-move turns those
-   * into a nudge.
-   *
-   * Like {@link ecoMode} it is stored rather than applied, and takes effect at
-   * the desk's next manual reset. It is written even on a desk that is visibly
-   * driving itself, because the stored value is what the *next* reset makes
-   * live — a box running one-touch while storing hold-to-move is one reset away
-   * from silently losing every preset.
-   */
-  oneTouch?: boolean;
 }
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -118,9 +103,6 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
   }
   if (desk.ecoMode !== undefined && typeof desk.ecoMode !== 'boolean') {
     problems.push(`${where}.ecoMode must be true or false`);
-  }
-  if (desk.oneTouch !== undefined && typeof desk.oneTouch !== 'boolean') {
-    problems.push(`${where}.oneTouch must be true or false`);
   }
   return problems;
 }

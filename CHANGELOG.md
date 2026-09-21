@@ -15,12 +15,6 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   desk from 22.6 mm/s to 42.4 mm/s once the desk has been reset. The desk stores both and goes on running whatever it was
   last reset with, so the log says plainly that a manual reset is needed and
   does not pretend the setting took effect.
-- **One-touch mode is stored by default.** Everything past raise and lower
-  needs the control box to drive to a position by itself: memory switches,
-  target heights, any move the Home app starts and stops watching. A desk can
-  run one-touch for months while *storing* hold-to-move, and lose every preset
-  at a reset nobody connects to it. Storing it disarms that. Turn it off if
-  hold-to-move is deliberate — that is a safety choice, not this plugin's call.
 
 ### Fixed
 

@@ -64,10 +64,18 @@ export const Cmd = {
   /** Low power, the app's eco mode: `0` off, `1` on. */
   LOW_POWER: 0x18,
   /**
-   * How the desk responds to a memory button: `0` hold it, `1` one touch.
+   * Whether the control box drives to a position by itself.
    *
-   * With one touch the control box drives to a position by itself, which is
-   * what makes {@link GOTO_HEIGHT} and the memory commands work unattended.
+   * The Jarvis notes give `0` as hold-to-move and `1` as one touch. **On this
+   * hardware it is the other way round**, measured 21.09.2026 with a reset
+   * between each run and nothing polling to interfere: on `0` a single
+   * {@link GOTO_HEIGHT} or memory command drives the desk the whole way, and on
+   * `1` it moves about 15 mm and stops.
+   *
+   * Which is why nothing here writes this field. One desk is not enough to say
+   * the published mapping is wrong for every control box, and a plugin that
+   * guessed at it would arm a change that only goes off at the owner's next
+   * reset — by which time nothing connects the two.
    */
   MOTION_MODE: 0x19,
   /** Travel speed. The app offers 28, 31, 35, 38 and 40. */

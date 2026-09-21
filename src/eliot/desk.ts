@@ -168,23 +168,6 @@ export interface DeskOptions {
    * next reset, which may be weeks away and nowhere near this decision.
    */
   eco?: boolean;
-  /**
-   * Store one-touch mode, so the box drives to a position by itself.
-   *
-   * On by default, because everything this plugin offers beyond raise and
-   * lower depends on it: a memory switch, a target height, anything the Home
-   * app fires and walks away from. On hold-to-move the box expects the button
-   * held, so a preset command produces a nudge and stops.
-   *
-   * It is stored even when the desk appears to be driving itself, and that is
-   * the point. A box can run one-touch for months while storing `0`, and then
-   * the next reset — for any reason — makes the stored value live and every
-   * preset quietly stops working. Storing `1` disarms that.
-   *
-   * Set it false to leave the desk's own setting alone: hold-to-move is a
-   * deliberate choice in some houses, and it is not this plugin's to overrule.
-   */
-  oneTouch: boolean;
 }
 
 /**
@@ -197,14 +180,10 @@ export interface DeskOptions {
  * the manufacturer's own app uses is the conservative choice for a value that
  * only takes effect after a reset, where a bad one is discovered late.
  */
-/** Motion mode where the control box drives to a position on its own. */
-const ONE_TOUCH = 1;
-
 const ECO_VELOCITY = 28;
 const FAST_VELOCITY = 40;
 
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
-  oneTouch: true,
   idlePollMs: 30_000,
   externalMoveMm: 15,
   settleMs: 3000,
@@ -281,8 +260,6 @@ export class Desk extends EventEmitter {
   #refreshed = false;
   /** Whether the configured eco pair has been dealt with on this connection. */
   #ecoApplied = false;
-  /** Whether one-touch has been dealt with on this connection. */
-  #oneTouchApplied = false;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -825,37 +802,6 @@ export class Desk extends EventEmitter {
       this.#emitChange();
     }
     void this.#applyEco();
-    void this.#applyOneTouch();
-  }
-
-  /**
-   * Store one-touch mode unless the desk already has it, or it was declined.
-   *
-   * Like the eco pair this only takes effect at the next reset, so it cannot
-   * rescue a desk that is ignoring its presets today. What it does is make sure
-   * the next reset does not introduce the problem — or, on a desk already stuck
-   * in hold-to-move, that a reset is all it takes to fix.
-   */
-  async #applyOneTouch(): Promise<void> {
-    if (!this.#opts.oneTouch || this.#oneTouchApplied) {
-      return;
-    }
-    const { motionMode } = this.#settings;
-    if (motionMode === null) {
-      return;
-    }
-    this.#oneTouchApplied = true;
-    if (motionMode === ONE_TOUCH || !this.#transport.connected) {
-      return;
-    }
-
-    await this.#transport.send(Cmd.MOTION_MODE, [ONE_TOUCH]);
-    this.#log.warn(
-      `the desk stores motion mode ${motionMode}, which is hold-to-move: a memory switch ` +
-        'or a target height nudges it and stops. One-touch has been stored instead, and ' +
-        'takes effect when the desk is next reset by hand — drive it to the bottom and ' +
-        'hold the down key until it re-homes. Set oneTouch to false to leave it alone.',
-    );
   }
 
   /**
@@ -960,7 +906,6 @@ export class Desk extends EventEmitter {
     // trustworthy until it has been asked again.
     this.#refreshed = false;
     this.#ecoApplied = false;
-    this.#oneTouchApplied = false;
     this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');
