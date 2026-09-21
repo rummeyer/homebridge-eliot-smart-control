@@ -6,6 +6,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.1] — 2026-09-21
+
+### Added
+
+- **The plugin has an icon**: a photograph of the desk, square, at the top of
+  the README and on the npm page. A copy sized for the Homebridge plugin icon
+  request sits in `branding/` — Homebridge hosts those icons itself, so the
+  repository holds the source rather than the thing the UI reads.
+
 ## [1.6.0] — 2026-09-21
 
 ### Added
@@ -381,7 +390,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.1...HEAD
+[1.6.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.1...v1.5.2
 [1.5.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.0...v1.5.1
