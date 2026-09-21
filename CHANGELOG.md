@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.4.0] — 2026-09-21
+
 ### Changed
 
 - **Eco mode now means travel speed 20**, not 28. 28 was where the Eliot app
@@ -275,7 +277,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.4.0...HEAD
+[1.4.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.0.0...v1.1.0
