@@ -6,28 +6,6 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Fixed
-
-- **The firmware version now actually reaches the Home app.** It was read
-  correctly and published too late to be seen: HomeKit reads the information
-  service when the bridge publishes its accessories and does not come back for
-  it, and the desk only sends its settings a couple of seconds after
-  connecting. The version is now remembered across restarts and set before
-  publication. A desk seen for the first time still shows nothing until its
-  second start, which is the price of not inventing a number.
-
-### Changed
-
-- **Frames received are logged too**, at debug level, mirroring the `→` that
-  was already there. Without them the log showed what was asked and never what
-  came back, so a desk that did not answer and an answer that was not
-  understood looked exactly alike.
-- **Reconnect attempts now top out at a minute**, not five. The usual reason
-  the desk is unreachable is that something else holds the dongle's single
-  connection — the Eliot app, most often — and that ends the moment the app is
-  closed. The old ceiling meant the desk stayed missing for up to five minutes
-  after it was free again, with nothing to show for the wait.
-
 ## [1.1.0] — 2026-09-21
 
 ### Added
@@ -35,7 +13,11 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - **The control box's firmware version**, shown in the Home app's accessory
   details instead of nothing. It is published exactly as the desk reports it:
   this one says `10`, which is probably version 1.0, but nothing here has
-  established that and a dot would make a guess look like a reading.
+  established that and a dot would make a guess look like a reading. The desk
+  only says so a couple of seconds after connecting, which is later than
+  HomeKit reads the information service, so the version is remembered between
+  restarts and published from that. A desk seen for the first time shows
+  nothing until its second start — the price of not inventing a number.
 - **The desk's own settings are now read back**, not assumed. `CONNECT` (`0xFE`)
   turns out to be the command that fetches the whole settings block — travel
   speed, eco mode, motion mode, collision sensitivity, display units and the
@@ -45,12 +27,21 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   mode the desk reports. It is the setting most likely to explain a control box
   that will not drive itself, and the log now says which value is in force
   rather than leaving it to be guessed at.
+- **Frames received are logged**, at debug level, mirroring the `→` that was
+  already there. Without them the log showed what was asked and never what came
+  back, so a desk that did not answer and an answer that was not understood
+  looked exactly alike.
 
 ### Changed
 
-- Nothing a user can see beyond the above. The settings are read but not yet
-  offered as switches: eco and travel speed only take effect after the desk is
-  reset, and a switch that silently needs a reset to mean anything would be
+- **Reconnect attempts now top out at a minute**, not five. The usual reason
+  the desk is unreachable is that something else holds the dongle's single
+  connection — the Eliot app, most often — and that ends the moment the app is
+  closed. The old ceiling meant the desk stayed missing for up to five minutes
+  after it was free again, with nothing to show for the wait.
+- Nothing else a user can see beyond the above. The settings are read but not
+  yet offered as switches: eco and travel speed only take effect after the desk
+  is reset, and a switch that silently needs a reset to mean anything would be
   worse than no switch.
 
 ## [1.0.0] — 2026-09-18
