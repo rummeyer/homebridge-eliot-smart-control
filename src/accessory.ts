@@ -513,24 +513,36 @@ export class EliotAccessory {
   }
 
   /**
-   * Give a service the name it shows under by default.
+   * Name a service so the Home app shows it under that name.
    *
-   * `Name` and nothing else. `ConfiguredName` looks like the right thing —
-   * it is the characteristic the Home app edits on the services that have it —
-   * but Switch, MotionSensor and WindowCovering are not among them, and adding
-   * it produces "Characteristic not in required or optional characteristic
-   * section" from Homebridge and an accessory the Home app treats as not quite
-   * conforming. Changing its room stops working, which is a strange symptom for
-   * a name.
+   * Both characteristics, and in this order. `Name` is what the service has
+   * always carried. `ConfiguredName` is what the Home app actually displays for
+   * the services of a bridged accessory — without it every switch here shows as
+   * "Schalter 1", "Schalter 2" and so on — and it is also what the Home app
+   * writes to when somebody renames one.
    *
-   * Renaming still works, and always did: the Home app keeps the name the owner
-   * gave a service in its own database, on the phone, not on the accessory.
-   * Nothing written here can overwrite that. What this sets is only the name a
-   * service arrives under.
+   * It has to be declared before it is set: Switch, MotionSensor and
+   * WindowCovering do not list `ConfiguredName` among their characteristics, so
+   * setting it straight out produces "Characteristic not in required or
+   * optional characteristic section" from Homebridge and an accessory HomeKit
+   * treats as not quite conforming. `addOptionalCharacteristic` is the missing
+   * step, not the characteristic itself.
+   *
+   * And it is only ever set when empty. A value already there came either from
+   * a previous start or from somebody renaming the service in the Home app, and
+   * there is no way to tell those apart — so the name is written once, when
+   * there is nothing to overwrite, and left alone afterwards.
    */
   #name(service: Service, label: string): void {
     const { Characteristic } = this.#platform.api.hap;
     service.setCharacteristic(Characteristic.Name, label);
+
+    service.addOptionalCharacteristic(Characteristic.ConfiguredName);
+    const configured = service.getCharacteristic(Characteristic.ConfiguredName);
+    const current = configured.value;
+    if (current === undefined || current === null || current === '') {
+      service.setCharacteristic(Characteristic.ConfiguredName, label);
+    }
   }
 
   /** Let a momentary switch fall back to off, the way a scene button does. */

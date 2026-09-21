@@ -34,6 +34,7 @@ class FakeCharacteristic {
 
 class FakeService {
   characteristics = new Map<string, FakeCharacteristic>();
+  optional = new Set<string>(['Name']);
   kind: string;
   displayName: string | undefined;
   subtype: string | undefined;
@@ -50,6 +51,11 @@ class FakeService {
       this.characteristics.set(key, new FakeCharacteristic(key));
     }
     return this.characteristics.get(key)!;
+  }
+  /** HAP requires a characteristic be declared before a service may carry it. */
+  addOptionalCharacteristic(name: unknown) {
+    this.optional.add(String(name));
+    return this;
   }
   setCharacteristic(name: unknown, _value: unknown) {
     this.getCharacteristic(name);

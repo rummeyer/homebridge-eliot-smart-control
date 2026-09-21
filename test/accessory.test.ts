@@ -97,6 +97,14 @@ class FakeCharacteristic {
 
 class FakeService {
   characteristics = new Map<string, FakeCharacteristic>();
+  /**
+   * What the service is allowed to carry beyond its own list.
+   *
+   * Real HAP warns and carries on when a characteristic is set without being
+   * declared, which is how an accessory the Home app would not fully edit got
+   * shipped twice. Here it throws, so the same mistake fails a test instead.
+   */
+  optional = new Set<string>(['Name']);
   kind: string;
   subtype: string | undefined;
   constructor(kind: string, _displayName?: string, subtype?: string) {
@@ -110,7 +118,14 @@ class FakeService {
     }
     return this.characteristics.get(key)!;
   }
+  addOptionalCharacteristic(name: unknown) {
+    this.optional.add(String(name));
+  }
   setCharacteristic(name: unknown, value: unknown) {
+    const key = String(name);
+    if (key === 'ConfiguredName' && !this.optional.has(key)) {
+      throw new Error(`${this.kind}: ConfiguredName set without addOptionalCharacteristic`);
+    }
     this.getCharacteristic(name).value = value;
     return this;
   }
@@ -369,6 +384,52 @@ test('a desk already holding the configured pair is not written to', async (t) =
   );
 });
 
+test('every service is named, under both characteristics', async (t) => {
+  // ConfiguredName is the one the Home app displays for a bridged accessory's
+  // services. Without it they show as "Schalter 1", "Schalter 2" and so on.
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: {} } });
+
+  const expected: [string, string, string][] = [
+    ['Switch', 'memory1', 'Memory 1'],
+    ['Switch', 'childlock', 'Child Lock'],
+    ['Switch', 'automove', 'Auto Movement'],
+    ['MotionSensor', 'automove-warning', 'Desk Move Soon'],
+  ];
+  for (const [kind, subtype, label] of expected) {
+    const service = accessory.getServiceById(kind, subtype)!;
+    assert.equal(service.getCharacteristic('Name').value, label, `${subtype} Name`);
+    assert.equal(
+      service.getCharacteristic('ConfiguredName').value,
+      label,
+      `${subtype} ConfiguredName`,
+    );
+  }
+});
+
+test('a name given in the Home app is not written over', async (t) => {
+  const first = new FakeAccessory();
+  await start(t, first, { desk: { autoMove: {} } });
+
+  // The Home app writes the owner's name into ConfiguredName.
+  first.getServiceById('MotionSensor', 'automove-warning')!.getCharacteristic(
+    'ConfiguredName',
+  ).value = 'Tisch fährt gleich';
+
+  const restarted = new FakeAccessory();
+  restarted.services = first.services;
+  restarted.context = { ...first.context };
+  await start(t, restarted, { desk: { autoMove: {} } });
+
+  assert.equal(
+    restarted
+      .getServiceById('MotionSensor', 'automove-warning')!
+      .getCharacteristic('ConfiguredName').value,
+    'Tisch fährt gleich',
+    'the text of the notification is the owner\'s to choose',
+  );
+});
+
 test('switches are named without the desk in front of them', async (t) => {
   const accessory = new FakeAccessory();
   await start(t, accessory);
@@ -381,22 +442,6 @@ test('switches are named without the desk in front of them', async (t) => {
     accessory.getServiceById('Switch', 'childlock')!.getCharacteristic('Name').value,
     'Child Lock',
   );
-});
-
-test('no service is given a ConfiguredName', async (t) => {
-  // Switch, MotionSensor and WindowCovering do not have this characteristic.
-  // Setting it anyway makes Homebridge warn and the Home app refuse to change
-  // the accessory's room — a strange symptom that costs a while to connect to
-  // a name. The Home app stores renames itself and never needed it.
-  const accessory = new FakeAccessory();
-  await start(t, accessory, { desk: { autoMove: {} } });
-
-  for (const service of accessory.services) {
-    assert.ok(
-      !service.characteristics.has('ConfiguredName'),
-      `${service.kind} ${service.subtype ?? ''} was given a ConfiguredName`,
-    );
-  }
 });
 
 test('auto movement is off until the switch is turned on', async (t) => {

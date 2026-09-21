@@ -8,13 +8,21 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **The Home app can change the accessory's room again.** Services were being
-  given a `ConfiguredName`, which Switch, MotionSensor and WindowCovering do
-  not have — Homebridge said so on every start, and the Home app quietly
-  stopped letting the accessory be edited properly. Only `Name` is set now.
-  Renaming was never affected: the Home app keeps the names you give things in
-  its own database, on the phone, and nothing the accessory writes can overrule
-  that.
+- **The idle poll no longer cancels a move.** It skipped polling while the
+  plugin was driving the desk, but not while the *control box* was — which is
+  precisely the case that must not be polled, because `SETTINGS` is a command
+  and one arriving mid-move makes the box abandon it. The move died, the desk
+  stopped short, and the box then looked like one that had never understood
+  `GOTO_HEIGHT`, so the step-command fallback took over and the position
+  jumped. Dragging the slider was where this showed.
+- **Service names are back, and the room can be changed.** `ConfiguredName` is
+  what the Home app displays for a bridged accessory's services — without it
+  every switch shows as "Schalter 1", "Schalter 2" and so on — but Switch,
+  MotionSensor and WindowCovering do not list it, so it has to be declared with
+  `addOptionalCharacteristic` before it is set. Setting it undeclared made
+  Homebridge warn on every start and left an accessory the Home app would not
+  fully edit. It is also written only when empty, so a name given in the Home
+  app stays.
 
 ### Added
 

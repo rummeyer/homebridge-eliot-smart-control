@@ -942,9 +942,17 @@ export class Desk extends EventEmitter {
       return;
     }
     this.#poll = setInterval(() => {
-      // Only while at rest: during a move the desk is already talking, and an
-      // extra request would just compete with the pulses for the link.
-      if (!this.#move && this.#transport.connected) {
+      // Only while at rest, and `#native` counts. A move the control box is
+      // driving is exactly the case that must not be polled: SETTINGS is a
+      // command, and one arriving mid-move makes the box abandon the move. The
+      // desk is streaming its height during a move anyway, so there is nothing
+      // to ask for.
+      //
+      // Left unguarded this cost a GOTO_HEIGHT roughly whenever a move and the
+      // poll coincided: the move died, the desk stopped short, and — worse —
+      // the box looked like one that does not understand GOTO_HEIGHT, so the
+      // step-command fallback took over and the position jumped.
+      if (!this.#move && !this.#native && this.#transport.connected) {
         void this.#transport.send(Cmd.SETTINGS).catch(() => {});
       }
     }, this.#opts.idlePollMs);

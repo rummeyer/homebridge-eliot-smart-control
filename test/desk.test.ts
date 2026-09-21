@@ -295,6 +295,34 @@ test('connecting loads height, limits and the lock state', async (t) => {
   assert.equal(desk.state.position, 31);
 });
 
+test('nothing is polled while the control box is driving', async (t) => {
+  // SETTINGS is a command, and one arriving mid-move makes the box abandon the
+  // move — the desk stops short, and then looks like a box that never
+  // understood GOTO_HEIGHT at all, so the step fallback takes over and the
+  // position jumps.
+  const box = new FakeDesk(880);
+  const desk = new Desk(box, silent, { idlePollMs: 60 });
+  t.after(async () => {
+    await desk.close();
+  });
+  await desk.start();
+  await tick(1400);
+
+  const move = desk.moveTo(90);
+  await tick(200);
+  const during = box.sent.filter((c) => c === Cmd.SETTINGS).length;
+  await tick(500);
+
+  assert.equal(
+    box.sent.filter((c) => c === Cmd.SETTINGS).length,
+    during,
+    'the poll stayed quiet for the whole move',
+  );
+
+  desk.stop();
+  await move;
+});
+
 test('nothing is published as ready before the limits arrive', async (t) => {
   const box = new FakeDesk(880);
   const desk = new Desk(box, silent, { idlePollMs: 0 });
