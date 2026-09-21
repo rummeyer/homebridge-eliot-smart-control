@@ -6,6 +6,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Switches are called what they are** — *Memory 1*, *Child Lock* — instead of
+  carrying the desk's name in front of them. The Home app already shows which
+  accessory a switch belongs to, and *Schreibtisch Memory 1* said it twice.
+  Switches named by an earlier version are renamed on the next start, but only
+  where the name is still exactly what that version wrote: anything else is
+  yours, including a rename that happens to begin with the desk's name.
+
 ## [1.3.0] — 2026-09-21
 
 ### Removed

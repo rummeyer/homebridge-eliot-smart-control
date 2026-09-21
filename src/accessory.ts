@@ -148,8 +148,10 @@ export class EliotAccessory {
       const subtype = 'childlock';
       const restored = accessory.getServiceById(HapService.Switch, subtype);
       this.#lockService =
-        restored ?? accessory.addService(HapService.Switch, `${config.name} Child Lock`, subtype);
-      if (!restored) {
+        restored ?? accessory.addService(HapService.Switch, 'Child Lock', subtype);
+      if (restored) {
+        this.#unprefix(this.#lockService, 'Child Lock');
+      } else {
         this.#name(this.#lockService, 'Child Lock');
       }
       this.#lockService
@@ -314,9 +316,10 @@ export class EliotAccessory {
       // exist at runtime. Taking the service and skipping the wiring leaves a
       // switch that is present in the Home app and does nothing when pressed.
       const service =
-        restored ??
-        this.#accessory.addService(HapService.Switch, `${this.#config.name} ${label}`, subtype);
-      if (!restored) {
+        restored ?? this.#accessory.addService(HapService.Switch, label, subtype);
+      if (restored) {
+        this.#unprefix(service, label);
+      } else {
         this.#name(service, label);
       }
       // Momentary, not stateful. What these are for is going somewhere, and a
@@ -345,12 +348,34 @@ export class EliotAccessory {
    * so writing it on every start would quietly undo their rename at the next
    * Homebridge restart — and a rename that does not survive a restart is worse
    * than no rename, because it looks like it worked.
+   *
+   * The name is the label alone: "Memory 1", "Child Lock". The Home app already
+   * shows which accessory a switch belongs to, and in a room full of them the
+   * desk's name on every button is noise.
    */
   #name(service: Service, label: string): void {
     const { Characteristic } = this.#platform.api.hap;
-    const full = `${this.#config.name} ${label}`;
-    service.setCharacteristic(Characteristic.Name, full);
-    service.setCharacteristic(Characteristic.ConfiguredName, full);
+    service.setCharacteristic(Characteristic.Name, label);
+    service.setCharacteristic(Characteristic.ConfiguredName, label);
+  }
+
+  /**
+   * Drop the desk's name from a switch this plugin named in an earlier version.
+   *
+   * Only when the name is still exactly what that version would have written.
+   * Anything else is the owner's, including a rename that happens to start with
+   * the desk's name, and is left alone — the point of naming once is that the
+   * name stops being ours after that.
+   */
+  #unprefix(service: Service, label: string): void {
+    const { Characteristic } = this.#platform.api.hap;
+    const old = `${this.#config.name} ${label}`;
+    if (service.getCharacteristic(Characteristic.ConfiguredName).value !== old) {
+      return;
+    }
+    service.setCharacteristic(Characteristic.Name, label);
+    service.setCharacteristic(Characteristic.ConfiguredName, label);
+    this.#platform.log.info(`${this.#config.name}: renamed "${old}" to "${label}"`);
   }
 
   /** Let a momentary switch fall back to off, the way a scene button does. */
