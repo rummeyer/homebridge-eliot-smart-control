@@ -77,6 +77,23 @@ export class EliotAccessory {
       .setCharacteristic(Characteristic.Model, 'Smart Dongle')
       .setCharacteristic(Characteristic.SerialNumber, config.mac);
 
+    // The version the desk gave last time, set before the bridge publishes.
+    //
+    // HomeKit reads the information service when the accessory database is
+    // published and does not come back for it: FirmwareRevision cannot notify,
+    // so a value written later is correct in this process and invisible in the
+    // Home app. The settings block arrives about two seconds after connecting,
+    // which is always too late. Remembering it across restarts is what makes it
+    // visible — a desk seen for the first time shows nothing until its second
+    // start, which is the price of not inventing a number.
+    const remembered: unknown = accessory.context.firmware;
+    if (typeof remembered === 'number') {
+      this.#firmware = remembered;
+      accessory
+        .getService(HapService.AccessoryInformation)
+        ?.setCharacteristic(Characteristic.FirmwareRevision, String(remembered));
+    }
+
     this.#service =
       accessory.getService(HapService.WindowCovering) ??
       accessory.addService(HapService.WindowCovering, config.name);
@@ -139,11 +156,12 @@ export class EliotAccessory {
   }
 
   /**
-   * Show the control box's firmware version once it has told us.
+   * Record the control box's firmware version once it has told us.
    *
-   * It only arrives with the settings block, which is a few hundred
-   * milliseconds after connecting — later than this accessory is built — so
-   * it is filled in here rather than in the constructor.
+   * It arrives with the settings block, seconds after this accessory was
+   * published, so setting it here is what keeps the value true rather than
+   * what makes it visible — see the constructor, which publishes the
+   * remembered one early enough for HomeKit to read it.
    *
    * The number is published as the desk reports it. A `10` is probably
    * version 1.0, but nothing here has established that, and inventing a dot
@@ -159,6 +177,9 @@ export class EliotAccessory {
     this.#accessory
       .getService(HapService.AccessoryInformation)
       ?.setCharacteristic(Characteristic.FirmwareRevision, String(firmware));
+    // Persisted so the next start can publish it in time to be read.
+    this.#accessory.context.firmware = firmware;
+    this.#platform.api.updatePlatformAccessories([this.#accessory]);
   }
 
   /**

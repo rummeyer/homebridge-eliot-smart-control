@@ -6,8 +6,22 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The firmware version now actually reaches the Home app.** It was read
+  correctly and published too late to be seen: HomeKit reads the information
+  service when the bridge publishes its accessories and does not come back for
+  it, and the desk only sends its settings a couple of seconds after
+  connecting. The version is now remembered across restarts and set before
+  publication. A desk seen for the first time still shows nothing until its
+  second start, which is the price of not inventing a number.
+
 ### Changed
 
+- **Frames received are logged too**, at debug level, mirroring the `→` that
+  was already there. Without them the log showed what was asked and never what
+  came back, so a desk that did not answer and an answer that was not
+  understood looked exactly alike.
 - **Reconnect attempts now top out at a minute**, not five. The usual reason
   the desk is unreachable is that something else holds the dongle's single
   connection — the Eliot app, most often — and that ends the moment the app is

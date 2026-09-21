@@ -236,6 +236,14 @@ export class DeskLink extends EventEmitter {
 
   #onBytes(chunk: Buffer): void {
     for (const frame of this.#reader.push(chunk)) {
+      // Logged as the mirror of the `→` above. Without it the log shows what
+      // was asked and never what came back, so "the desk did not answer" and
+      // "the answer was not understood" look exactly alike — and the second
+      // is the one that is this plugin's fault.
+      this.#log.debug(
+        `← ${frame.command.toString(16).padStart(2, '0')}` +
+          (frame.params.length > 0 ? ` ${frame.params.toString('hex')}` : ''),
+      );
       this.emit('frame', frame);
     }
   }

@@ -150,7 +150,12 @@ const hap = {
 };
 
 const platform = {
-  api: { hap },
+  api: {
+    hap,
+    // Homebridge persists an accessory's context when a plugin says it
+    // changed; without this the firmware would be remembered in memory only.
+    updatePlatformAccessories() {},
+  },
   log: { debug() {}, info() {}, warn() {}, error() {} },
 };
 
@@ -240,6 +245,36 @@ test('the firmware version comes from the desk, not from a guess', async (t) => 
 
   const info = accessory.getService('AccessoryInformation')!;
   assert.equal(info.getCharacteristic('FirmwareRevision').value, '13');
+});
+
+test('the firmware survives a restart, so HomeKit can read it in time', async (t) => {
+  // HomeKit reads the information service when the bridge publishes and does
+  // not come back for it. A version first heard seconds after that is correct
+  // in this process and invisible in the Home app — it shows up on the next
+  // start, and only if it was remembered.
+  const first = new FakeAccessory();
+  const { transport } = await start(t, first);
+  transport.firmware = 0x0a;
+  await transport.send(Cmd.CONNECT);
+  await tick(50);
+  assert.equal(first.context.firmware, 10, 'the version was persisted');
+
+  const restarted = new FakeAccessory();
+  restarted.context = { ...first.context };
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(
+    platform as any,
+    restarted as any,
+    config as any,
+    new FakeTransport(),
+  );
+  t.after(() => handle.stop());
+
+  assert.equal(
+    restarted.getService('AccessoryInformation')!.getCharacteristic('FirmwareRevision').value,
+    '10',
+    'set before publication, not seconds after it',
+  );
 });
 
 test('a desk that reports no version is left without one', async (t) => {
