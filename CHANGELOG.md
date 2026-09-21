@@ -8,6 +8,11 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Changed
 
+- **Eco mode now means travel speed 20**, not 28. 28 was where the Eliot app
+  stops offering, which turned out to be a fact about the app rather than the
+  control box — the desk here was found storing 21, a value no version of the
+  app could have written, and took 21 back without complaint. Eco mode that is
+  barely slower than no eco mode is not worth resetting a desk to switch on.
 - **Switches are called what they are** — *Memory 1*, *Child Lock* — instead of
   carrying the desk's name in front of them. The Home app already shows which
   accessory a switch belongs to, and *Schreibtisch Memory 1* said it twice.

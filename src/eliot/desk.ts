@@ -173,14 +173,15 @@ export interface DeskOptions {
 /**
  * The travel speeds that go with eco on and eco off.
  *
- * The app offers 28, 31, 35, 38 and 40 and nothing outside that, so these are
- * its ends rather than the box's: this desk was found storing 21, below
- * anything the app will produce, which says the box accepts more than the app
- * offers and says nothing about what is good for it. Staying inside the range
- * the manufacturer's own app uses is the conservative choice for a value that
- * only takes effect after a reset, where a bad one is discovered late.
+ * 40 is the fastest the app offers. 20 is below the 28 it offers at the slow
+ * end, and deliberately: the app's range is not the box's. This desk was found
+ * storing 21, which no version of the app could have written, and 21 was
+ * written back to it here and accepted without complaint. Eco mode that is
+ * barely slower than no eco mode is not worth a reset to switch on, and 28 was
+ * chosen when the only thing known about the slow end was where the app stopped
+ * offering.
  */
-const ECO_VELOCITY = 28;
+const ECO_VELOCITY = 20;
 const FAST_VELOCITY = 40;
 
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {

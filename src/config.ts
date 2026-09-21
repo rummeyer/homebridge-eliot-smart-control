@@ -49,9 +49,11 @@ export interface DeskConfig {
    * - `leave` — the default. The desk's own setting is not read into anything
    *   and nothing is written. A setting written unasked would arm a change that
    *   fires at the owner's next reset, long after anyone connects the two.
-   * - `on` — eco mode with the slowest travel the Eliot app offers.
-   * - `off` — no eco mode, at the fastest it offers. Measured here: 22.6 mm/s
-   *   against 42.4 mm/s.
+   * - `on` — eco mode, at travel speed 20. Slower than the 28 the app offers at
+   *   its slow end: the app's range is not the box's, and a desk found storing
+   *   21 took 21 back without complaint.
+   * - `off` — no eco mode, at 40, the fastest the app offers. Measured on this
+   *   hardware: 22.6 mm/s at speed 21 against 42.4 mm/s at 40.
    *
    * `true` and `false` are accepted as `on` and `off`, because 1.2.0 shipped
    * this as a boolean.

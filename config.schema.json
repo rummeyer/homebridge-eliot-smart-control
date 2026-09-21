@@ -66,19 +66,19 @@
                   ]
                 },
                 {
-                  "title": "On - slow and quiet",
+                  "title": "On - slow and quiet (speed 20)",
                   "enum": [
                     "on"
                   ]
                 },
                 {
-                  "title": "Off - about twice as fast",
+                  "title": "Off - about twice as fast (speed 40)",
                   "enum": [
                     "off"
                   ]
                 }
               ],
-              "description": "Eco mode and travel speed, set as a pair. Measured on an Eliot desk: 22.6 mm/s with eco on, 42.4 mm/s with it off.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says.\n\n*Leave the desk as it is* writes nothing. The plugin logs what the desk has stored each time it connects, if you want to know where it stands."
+              "description": "Eco mode and travel speed, set as a pair. Measured on an Eliot desk: about 22 mm/s with eco on, 42.4 mm/s with it off.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says.\n\n*Leave the desk as it is* writes nothing. The plugin logs what the desk has stored each time it connects, if you want to know where it stands."
             }
           }
         }
