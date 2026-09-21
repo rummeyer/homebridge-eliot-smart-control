@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.5.0] — 2026-09-21
+
 ### Fixed
 
 - **A new target while the desk is moving now works.** Cancelling a move sent
@@ -56,6 +58,22 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 - **Moving the desk by hand restarts the timer**, which makes a nudge on the
   handset the snooze: the warning says it is about to move, you touch the
   handset, and you have another interval.
+
+### Changed
+
+- **Slider targets are allowed to settle before one is acted on.** A drag is
+  dozens of them, and each taken literally meant stopping the desk, waiting out
+  its coast and handing it somewhere new. Seven targets now make one command.
+- **A target the desk is already at is not a move.** The Home app sends the
+  current position the moment the slider is touched, and the desk was setting
+  off towards where it already was — the small movement before the real one.
+- **The settings page says less, and says it once.** Field hints had grown into
+  paragraphs and the sit/stand section said the same thing twice. What was cut
+  is in the README, where the long version belongs.
+- **The dongle is no longer described as advertising under one particular
+  name.** It carries whatever name the desk was given in the Eliot app, which
+  on many units is nothing useful. The scan always matched the service UUID
+  instead, which does not depend on what anybody called it.
 
 ## [1.4.0] — 2026-09-21
 
@@ -328,7 +346,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.4.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.0...HEAD
+[1.5.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.4.0...v1.5.0
 [1.4.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...v1.4.0
 [1.3.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.1.0...v1.2.0
