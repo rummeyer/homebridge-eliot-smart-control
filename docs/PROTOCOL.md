@@ -337,12 +337,28 @@ record of what the box has been *told*, and the box goes on running what it was
 last reset with — which is why it can report a value the desk is plainly not
 using.
 
-What is **not** established is how much faster it gets. Every speed figure taken
-that day (24.3, 16.8, 12.1 mm/s) was measured by pulsing `RAISE`, in three
-different and partly unknown drive states, and none of them is comparable to
-another or to the 22.2–22.6 mm/s of the earlier runs. A number worth recording
-needs `GOTO_HEIGHT`, where the box runs its own ramp — and that needs a control
-box that will drive itself, which this one stopped doing (see below).
+**And the effect is large.** Measured 21.09.2026, same tool, same 220 mm, same
+direction, one reset between the two runs:
+
+| | `GOTO_HEIGHT` | stepped `RAISE` |
+|---|---|---|
+| `LOW_POWER 1`, `VELOCITY 21` | **22.6 mm/s** | 9.0 mm/s |
+| `LOW_POWER 0`, `VELOCITY 40` | **42.4 mm/s** | 23.9 mm/s |
+
+The `GOTO_HEIGHT` column is the honest one — the box running its own ramp, which
+is how anything unattended moves this desk. It very nearly doubles.
+
+The stepped column is included only to show it moves the same way. Pulsed travel
+is dominated by the pulse cadence and the box's ramp restarting, so those
+numbers measure the method as much as the desk and should not be compared with
+anything but each other.
+
+This also explains why the question stayed open so long. Every earlier attempt
+measured 22.2–22.6 mm/s whatever it set, and concluded the commands did nothing.
+They were all measured without a reset in between, on a box that was still
+running whatever it had last been reset with — which was `VELOCITY 21`, so they
+were measuring the same configuration every time and getting, correctly, the
+same number.
 
 One trap for that measurement, learned the hard way: **do not hold the plugin
 off the dongle by killing its child bridge in a loop.** Homebridge restarts it
