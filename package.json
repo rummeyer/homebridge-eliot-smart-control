@@ -59,5 +59,14 @@
   ],
   "homepage": "https://github.com/rummeyer/homebridge-eliot-smart-control#readme",
   "type": "module",
-  "funding": "https://github.com/sponsors/rummeyer"
+  "funding": [
+    {
+      "type": "github",
+      "url": "https://github.com/sponsors/rummeyer"
+    },
+    {
+      "type": "paypal",
+      "url": "https://paypal.me/rummeyer"
+    }
+  ]
 }

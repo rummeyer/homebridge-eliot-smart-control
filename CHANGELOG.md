@@ -6,6 +6,12 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Funding links**: GitHub Sponsors and PayPal, in `package.json` where npm
+  and the Homebridge UI read them, and in `.github/FUNDING.yml` for the Sponsor
+  button on the repository page.
+
 ## [1.5.0] — 2026-09-21
 
 ### Fixed
