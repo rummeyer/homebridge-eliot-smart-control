@@ -124,7 +124,7 @@
                     "type": "string",
                     "title": "Window",
                     "placeholder": "08:00-12:00",
-                    "pattern": "^\\\\s*\\\\d{1,2}:\\\\d{2}\\\\s*-\\\\s*\\\\d{1,2}:\\\\d{2}\\\\s*$"
+                    "pattern": "^\\s*\\d{1,2}:\\d{2}\\s*-\\s*\\d{1,2}:\\d{2}\\s*$"
                   },
                   "description": "Outside these hours nothing moves and nothing warns."
                 },
