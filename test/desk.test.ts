@@ -575,10 +575,13 @@ test('a memory move can be stopped part way', async (t) => {
   assert.ok(box.heightMm < 1100, `stopped at ${box.heightMm}, nowhere near 1204`);
   assert.ok(box.heightMm >= partWay - 1, 'and did not jump backwards');
   assert.ok(box.sent.includes(Cmd.STOP), 'STOP was used');
-  // Insurance for a box that predates STOP, and it goes the way the desk was
-  // already travelling so that being wrong costs one step, not a reversal.
-  assert.ok(box.sent.includes(Cmd.RAISE), 'with a step command behind it');
-  assert.ok(!box.sent.includes(Cmd.LOWER), 'never the opposite direction');
+  // And nothing behind it. A step command used to follow as insurance for a
+  // box that predates STOP; on a box driving a GOTO_HEIGHT it starts a small
+  // move of its own, which the replacement target then arrives in the middle
+  // of — and a command arriving mid-move is one this box abandons. The desk
+  // took the 4 mm step and ignored the height it was given.
+  assert.ok(!box.sent.includes(Cmd.RAISE), 'no step command chasing the stop');
+  assert.ok(!box.sent.includes(Cmd.LOWER), 'in either direction');
 
 });
 

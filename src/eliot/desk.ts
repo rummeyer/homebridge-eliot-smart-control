@@ -171,6 +171,15 @@ export interface DeskOptions {
 }
 
 /**
+ * How long to let the desk coast after `STOP` before giving it a new target.
+ *
+ * It coasts about 13 mm, which at 42 mm/s is a third of a second. A new
+ * destination arriving inside that window is a command arriving mid-move, and
+ * the box answers those by abandoning what it was doing.
+ */
+const CANCEL_SETTLE_MS = 400;
+
+/**
  * The travel speeds that go with eco on and eco off.
  *
  * 40 is the fastest the app offers. 20 is below the 28 it offers at the slow
@@ -629,21 +638,28 @@ export class Desk extends EventEmitter {
   /**
    * Call off a move the control box is driving.
    *
-   * `STOP` is the proper way and coasts about 13 mm. A step command also
-   * cancels one, on this box at least, and is sent after it as insurance for
-   * a control box that predates `STOP` — it is the same thing a handset press
-   * does, and it goes the way the desk is already travelling so that being
-   * wrong costs one extra step rather than a lurch backwards.
+   * `STOP` and then a pause, and nothing else.
+   *
+   * A step command used to follow, as insurance for a control box that
+   * predates `STOP`. On a box that does understand `STOP` — which is any box
+   * that was driving a `GOTO_HEIGHT` to be cancelled in the first place — it is
+   * worse than useless: the step starts a small movement of its own, and the
+   * replacement `GOTO_HEIGHT` sent immediately afterwards arrives in the middle
+   * of it. A command arriving mid-move makes this box abandon the move, so the
+   * desk performed the 4 mm step, ignored the target it was given, and reported
+   * a stall. Setting the slider to 65% moved the desk by one.
+   *
+   * The pause is the other half. `STOP` leaves the desk coasting ~13 mm, and a
+   * new destination handed over during the coast is a command arriving mid-move
+   * by another name.
    */
   async #cancelNative(): Promise<void> {
-    const native = this.#native;
-    if (!native) {
+    if (!this.#native) {
       return;
     }
-    const fallback = native.direction === 'up' ? Cmd.RAISE : Cmd.LOWER;
     try {
       await this.#transport.send(Cmd.STOP);
-      await this.#transport.send(fallback);
+      await delay(CANCEL_SETTLE_MS);
     } catch (error) {
       this.#log.debug(`stopping failed: ${String(error)}`);
     }

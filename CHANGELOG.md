@@ -8,6 +8,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
+- **A new target while the desk is moving now works.** Cancelling a move sent
+  `STOP` and then a step command, as insurance for a control box too old to
+  know `STOP`. On a box driving a `GOTO_HEIGHT` that step starts a small move
+  of its own, and the replacement target arrives in the middle of it — which is
+  a command arriving mid-move, the one thing this box answers by giving up. The
+  desk took the 4 mm step and ignored where it had been told to go, so setting
+  the slider to 65% moved it by one. `STOP` alone now, followed by a pause long
+  enough for the desk to finish coasting before it is given somewhere new.
 - **The idle poll no longer cancels a move.** It skipped polling while the
   plugin was driving the desk, but not while the *control box* was — which is
   precisely the case that must not be polled, because `SETTINGS` is a command
