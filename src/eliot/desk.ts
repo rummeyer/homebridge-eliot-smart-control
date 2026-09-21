@@ -10,7 +10,7 @@
 import { EventEmitter } from 'node:events';
 
 import type { LinkLogger } from './link.ts';
-import { MoveController, heightToPercent, percentToHeight } from './move.ts';
+import { DEFAULT_MOVE_OPTIONS, MoveController, heightToPercent, percentToHeight } from './move.ts';
 import type { Direction, MoveOptions, MoveResult } from './move.ts';
 import { Cmd, Report, heightParams, readHeight } from './protocol.ts';
 import type { Frame } from './protocol.ts';
@@ -390,6 +390,24 @@ export class Desk extends EventEmitter {
     }
 
     const targetMm = percentToHeight(percent, min, max);
+
+    // A target the desk is already at is not a move, and asking for one costs
+    // something: the Home app sends the current position as a target the moment
+    // the slider is touched, so every drag began with the desk setting off
+    // towards where it already was and then being stopped a second later when
+    // the real target arrived. That is the small first movement.
+    //
+    // The threshold is the desk's own stopping distance. It cannot make a move
+    // shorter than that in any case — it would coast straight past — which is
+    // why the step path has never tried either.
+    const distance = Math.abs(targetMm - this.#heightMm);
+    if (distance < (this.#opts.move.approachMm ?? DEFAULT_MOVE_OPTIONS.approachMm)) {
+      this.#log.debug(`already at ${this.#heightMm} mm; ${targetMm} mm is not a move`);
+      this.#targetMm = this.#heightMm;
+      this.#emitChange();
+      return 'arrived';
+    }
+
     this.#log.info(`moving to ${percent}% (${targetMm} mm) from ${this.#heightMm} mm`);
     return this.#drive(targetMm, Cmd.GOTO_HEIGHT, heightParams(targetMm), true);
   }

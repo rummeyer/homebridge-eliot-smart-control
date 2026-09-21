@@ -154,6 +154,18 @@ its button appears the next time the plugin connects.
 and the plugin names them only once, when it first creates them, so whatever
 you rename them to survives restarts.
 
+**Eco mode is stored now and takes effect later.** The control box keeps
+running whatever it was last reset with, so the settings it reports back can
+differ from the speed it is visibly travelling at. A reset by hand — run the
+desk to the bottom and hold the down key until it re-homes — is what makes a
+stored setting live. No command over this connection can do it.
+
+**The idle refresh is only for what happens between moves.** The control box
+streams its height for as long as it is driving itself, so nothing needs asking
+then. It is also why the poll must stay in seconds: a request arriving while
+the box is moving makes it abandon the move, which looks exactly like a desk
+that stops a centimetre after it starts.
+
 **The desk's own safety features are untouched.** Anti-collision and the soft
 limits live in the control box. The plugin adds limits of its own on top: it
 gives up if the desk stops making progress, if a move takes longer than the

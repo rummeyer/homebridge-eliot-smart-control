@@ -39,6 +39,20 @@ const SNAP_TOLERANCE_PERCENT = 3;
  */
 const AUTO_TICK_MS = 30_000;
 
+/**
+ * How long to let slider targets settle before acting on one.
+ *
+ * Dragging the slider produces a stream of targets, and each one taken
+ * literally means stopping the desk, waiting out its coast and handing it a new
+ * destination — a burst of Bluetooth traffic at a control box that answers a
+ * command arriving mid-move by abandoning the move. Only the last target in a
+ * drag was ever wanted.
+ *
+ * Short enough that a single tap still feels immediate, and the desk needs
+ * about a second to get going in any case.
+ */
+const TARGET_SETTLE_MS = 300;
+
 /** The desk has four memory buttons; we mirror however many are in use. */
 const MEMORY_SLOTS = [1, 2, 3, 4];
 
@@ -86,6 +100,9 @@ export class EliotAccessory {
   #autoTimer: NodeJS.Timeout | undefined;
   /** Heights already complained about, so the log says it once and not hourly. */
   readonly #clamped = new Set<string>();
+  /** The last slider target, and the timer waiting to see if more follow. */
+  #pendingTarget: number | null = null;
+  #targetTimer: NodeJS.Timeout | undefined;
 
   /**
    * @param transport Stand-in for the Bluetooth link. Only tests pass one;
@@ -348,6 +365,10 @@ export class EliotAccessory {
   }
 
   async stop(): Promise<void> {
+    if (this.#targetTimer) {
+      clearTimeout(this.#targetTimer);
+      this.#targetTimer = undefined;
+    }
     if (this.#autoTimer) {
       clearInterval(this.#autoTimer);
       this.#autoTimer = undefined;
@@ -421,10 +442,32 @@ export class EliotAccessory {
     }
   }
 
+  /**
+   * Take a target from the Home app, and wait to see whether more follow.
+   *
+   * A drag is dozens of these. Acting on each one means stopping the desk and
+   * restarting it dozens of times, which is both slower and more likely to end
+   * in a move the control box has given up on.
+   */
   #setTarget(value: CharacteristicValue): void {
-    const percent = Math.round(Number(value));
+    this.#pendingTarget = Math.round(Number(value));
     this.#snapTo = null;
 
+    if (this.#targetTimer) {
+      clearTimeout(this.#targetTimer);
+    }
+    this.#targetTimer = setTimeout(() => {
+      this.#targetTimer = undefined;
+      const target = this.#pendingTarget;
+      this.#pendingTarget = null;
+      if (target !== null) {
+        this.#drive(target);
+      }
+    }, TARGET_SETTLE_MS);
+    this.#targetTimer.unref();
+  }
+
+  #drive(percent: number): void {
     // Not awaited: a full move takes half a minute and HomeKit gives a set
     // handler ten seconds. The characteristics are updated as the desk
     // reports, which is what the Home app watches anyway.

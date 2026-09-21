@@ -40,19 +40,19 @@
               "type": "integer",
               "default": 30,
               "minimum": 0,
-              "description": "How often to ask a standing desk for its height. The desk reports by itself while the control box is driving, so this only catches the handset being used. 0 turns it off. Leave it in seconds, not milliseconds: asking mid-move cancels the move."
+              "description": "How often to ask a standing desk for its height, which is how the handset being used gets noticed. 0 turns it off; keep it in seconds, not milliseconds."
             },
             "memorySwitches": {
               "title": "Memory switches",
               "type": "boolean",
               "default": true,
-              "description": "Offer the desk's memory positions as switches. They spring back after being pressed, like a scene. Only positions the desk actually has are shown, so an unused memory gets no switch. Rename them in the Home app if \"Memory 1\" is not what you want."
+              "description": "Offer the desk's memory positions as switches. Only positions the desk actually has appear."
             },
             "childLockSwitch": {
               "title": "Child lock as a switch",
               "type": "boolean",
               "default": true,
-              "description": "Offer the desk's child lock in the Home app. It is the only setting the control box reports back, so it is the only one that can be shown honestly rather than remembered."
+              "description": "Offer the desk's child lock in the Home app. It is the one setting the control box reports back, so it is the one that can be shown honestly."
             },
             "ecoMode": {
               "title": "Eco mode",
@@ -78,12 +78,12 @@
                   ]
                 }
               ],
-              "description": "Eco mode and travel speed, set as a pair. Measured on an Eliot desk: about 22 mm/s with eco on, 42.4 mm/s with it off.\n\n**Takes effect only after the desk is reset.** Run the desk to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says.\n\n*Leave the desk as it is* writes nothing. The plugin logs what the desk has stored each time it connects, if you want to know where it stands."
+              "description": "Eco mode and travel speed, set as a pair: about 22 mm/s against 42 mm/s.\n\n**Takes effect only after the desk is reset by hand** — run it to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says."
             },
             "autoMove": {
               "title": "Automatic sit/stand",
               "type": "object",
-              "description": "Move the desk between sitting and standing on a timer. Adds an **Auto Movement** switch to the Home app, which is what turns it on — nothing moves until you do.\n\nA **Desk Move Soon** motion sensor trips a few minutes before each move. To be told about it, open that sensor in the Home app and turn on its notifications; HomeKit gives a plugin no other way to reach you. Moving the desk by hand at any point restarts the timer, so a nudge on the handset buys you another interval.",
+              "description": "Move the desk between two heights on a timer. Adds an **Auto Movement** switch to the Home app, and nothing moves until you turn it on.",
               "properties": {
                 "sittingMm": {
                   "title": "Sitting height (mm)",
@@ -91,7 +91,7 @@
                   "default": 800,
                   "minimum": 650,
                   "maximum": 1280,
-                  "description": "Where the desk sits you down. The desk's own limits still win: a height below its soft minimum is treated as that minimum, so it never drives past one."
+                  "description": "Clamped to the desk's own limits if it will not go that far."
                 },
                 "standingMm": {
                   "title": "Standing height (mm)",
@@ -99,21 +99,21 @@
                   "default": 1200,
                   "minimum": 650,
                   "maximum": 1280,
-                  "description": "Where the desk stands you up. Must be above the sitting height."
+                  "description": "Must be above the sitting height."
                 },
                 "intervalMinutes": {
                   "title": "Move every (minutes)",
                   "type": "integer",
                   "default": 30,
                   "minimum": 1,
-                  "description": "Time at one height before moving to the other. Must be longer than the warning."
+                  "description": "Must be longer than the warning."
                 },
                 "warnMinutes": {
                   "title": "Warn before (minutes)",
                   "type": "integer",
                   "default": 5,
                   "minimum": 0,
-                  "description": "Must be shorter than the interval. **0 turns the warning off** and removes the Desk Move Soon sensor from the Home app — the desk then just moves."
+                  "description": "A **Desk Move Soon** sensor trips this long before each move; turn on its notifications in the Home app to be told. 0 turns the warning off and removes the sensor."
                 },
                 "windows": {
                   "title": "Working hours",

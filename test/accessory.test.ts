@@ -519,6 +519,43 @@ test('no auto movement accessories unless it is configured', async (t) => {
   assert.equal(accessory.getServiceById('MotionSensor', 'automove-warning'), undefined);
 });
 
+test('a drag is one move, not one per step of the slider', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  const before = transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length;
+
+  // What the Home app sends while a finger is on the slider.
+  const target = accessory.getService('WindowCovering')!.getCharacteristic('TargetPosition');
+  for (const percent of [22, 28, 35, 44, 52, 61, 65]) {
+    await target.handlers.set?.(percent);
+  }
+  await tick(600);
+
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length - before,
+    1,
+    'seven targets, one command',
+  );
+});
+
+test('a target the desk is already at is not a move', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  const before = transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length;
+
+  // The Home app sends the current position the moment the slider is touched.
+  const state = accessory.getService('WindowCovering')!;
+  const now = Number(state.getCharacteristic('CurrentPosition').value);
+  await state.getCharacteristic('TargetPosition').handlers.set?.(now);
+  await tick(600);
+
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length,
+    before,
+    'nothing was sent to the desk',
+  );
+});
+
 test('the child lock is a stateful switch, on from the start', async (t) => {
   const accessory = new FakeAccessory();
   const { transport } = await start(t, accessory);
