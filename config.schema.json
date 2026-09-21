@@ -18,11 +18,11 @@
         "type": "array",
         "items": {
           "type": "object",
+          "required": ["name", "mac"],
           "properties": {
             "name": {
               "title": "Name",
               "type": "string",
-              "required": true,
               "default": "Desk",
               "placeholder": "Desk",
               "description": "What the desk is called in the Home app."
@@ -30,7 +30,6 @@
             "mac": {
               "title": "Dongle address",
               "type": "string",
-              "required": true,
               "placeholder": "E5:11:22:33:44:55",
               "pattern": "^([0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$",
               "description": "Bluetooth address of the Smart Dongle."
