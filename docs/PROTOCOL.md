@@ -237,7 +237,7 @@ step commands and could not stop it properly.
 | `GOTO_HEIGHT` | `1B` | 2 | Drive to a height, big-endian millimetres. **Verified**: 802 → 900 mm against a target of 902, landing 2 mm out, on one command |
 | `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
 | `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
-| `MOTION_MODE` | `19` | 1 | `0` hold the button, `1` one touch |
+| `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026** — see below |
 | `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
 | `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low |
 | `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
@@ -248,9 +248,30 @@ step commands and could not stop it properly.
 | `CONNECT` | `FE` | 0 | **Reads the whole settings block.** Not decoration — see below |
 
 `GOTO_HEIGHT` is only sent once when the desk is in one-touch mode
-(`MOTION_MODE = 1`). In hold mode the app repeats it, which is worth knowing
-before exposing that setting to anyone: turning one-touch off takes away the
-desk's ability to drive itself anywhere.
+(`MOTION_MODE = 0`). In hold mode the app repeats it on an interval, which is
+worth knowing before exposing that setting to anyone: turning one-touch off
+takes away the desk's ability to drive itself anywhere.
+
+**Correction, 21.09.2026.** This table had `MOTION_MODE` the wrong way round —
+`0` as hold and `1` as one touch — and the sentence above inherited it. The
+app's own command table has both frames written out, and the parameter and its
+checksum settle it:
+
+```
+MOTION_PRESS: F1 F1 19 01 00 1A 7E      one touch is 0
+MOTION_HOLD:  F1 F1 19 01 01 1B 7E      hold is 1
+```
+
+Its reader agrees, in two places: `case '19'` maps `0` to `ONE_TOUCH` and `1`
+to `CONSTANT_TOUCH`. Nothing here was measured against the control box — the
+mapping is read out of the app, like the rest of this section, and writing
+`0x19` to find out would cost a reset.
+
+The wrong version was believed because it seemed to have been confirmed: with
+`00` stored the desk moved 10 mm on a `GOTO_HEIGHT` and stopped, which looks
+exactly like hold mode. That was the `SETTINGS` poll described below, not the
+motion mode, and the same afternoon produced two other conclusions of the same
+shape.
 
 **The app writes to service `FF12`, characteristic `FF01`** — not the `FE60`
 this dongle exposes. It targets an older generation. The frame layer is

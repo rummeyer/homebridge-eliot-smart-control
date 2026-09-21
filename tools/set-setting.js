@@ -13,13 +13,15 @@
  * and velocity 28 were both stored, neither was in force, and the desk moved at
  * 22.4 mm/s either way.
  *
- * It is also what broke GOTO_HEIGHT. `MOTION_MODE` (`0x19`) had `00` stored —
- * hold-to-move — while the box was running one-touch from some earlier reset.
- * The first reset performed here made the stored value live, and a single
- * GOTO_HEIGHT then moved the desk 10 mm and stopped, which is hold-mode doing
- * exactly what it says. So a value written here is a promise about the desk's
- * behaviour *after* its next reset, and this tool says so rather than
- * pretending the write took effect.
+ * So a value written here is a promise about the desk's behaviour *after* its
+ * next reset, and this tool says so rather than pretending the write took
+ * effect.
+ *
+ * This header used to blame `MOTION_MODE` (`0x19`) for GOTO_HEIGHT moving the
+ * desk 10 mm and stopping: `00` was stored, `00` was read as hold-to-move, and
+ * the reset performed here was said to have made it live. Both halves were
+ * wrong. `00` is one touch, not hold — see docs/PROTOCOL.md — and the 10 mm
+ * was a 400 ms `SETTINGS` poll in the test tools cancelling every move.
  *
  * `--reset` sends `0x91`, which is the entry into reset mode. Verified on this
  * hardware: the handset then shows RESET with a circle, and the reset happens
@@ -44,7 +46,7 @@ const HOLD = Number(arg('hold') ?? 45_000);
 
 if (!/^([0-9A-F]{2}:){5}[0-9A-F]{2}$/.test(MAC) || !Number.isInteger(CODE) || !Number.isInteger(VALUE)) {
   console.error('usage: node tools/set-setting.js <MAC> --code=0x19 --value=1 [--reset]');
-  console.error('  0x13 velocity   0x18 low power   0x19 motion mode (0 halten, 1 one-touch)');
+  console.error('  0x13 velocity   0x18 low power   0x19 motion mode (0 one-touch, 1 halten)');
   console.error('  0x1d sensitivity   0x0e units');
   process.exit(1);
 }
