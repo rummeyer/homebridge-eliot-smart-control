@@ -114,10 +114,14 @@ export interface DeskOptions {
   /**
    * How often to ask for the height while idle.
    *
-   * The control box never reports its height unprompted — not while moving,
-   * not after a command. `SETTINGS` (`0x07`) is answered with one, and that is
-   * the only way a height arrives. So this is not a backstop for the handset,
-   * it is the sole source of position whenever nothing else is asking.
+   * The control box streams its height while it drives itself, so this is only
+   * for what happens in between: someone using the handset, or a desk that was
+   * moved while we were disconnected.
+   *
+   * It must stay well clear of a move. `SETTINGS` is a command, and one that
+   * lands while the box is driving to a position abandons the move — polling at
+   * a few hundred milliseconds reduces every move to about ten millimetres.
+   * Thirty seconds is idle-only by a wide margin.
    */
   idlePollMs: number;
   /**

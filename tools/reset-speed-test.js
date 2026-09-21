@@ -91,14 +91,15 @@ const PULSE_MS = 500;
 /** No climb can legitimately take this long: 220 mm at 22 mm/s is 10 s. */
 const CLIMB_LIMIT_MS = 45_000;
 /**
- * How often to ask the box where it is.
+ * How often to ask the box where it is, while it is being step-driven.
  *
- * It does not stream its height. `SETTINGS` (`0x07`) is answered with one —
- * which is how the plugin follows the handset — so every height in this tool
- * comes from a poll. Without one a climb is measured blind and `settle()`
- * returns at once, while the desk is still moving. Faster than the pulse
- * cadence, and independent of it, so the sample rate does not depend on how
- * the desk is being driven.
+ * The box streams its height whenever it drives itself — `GOTO_HEIGHT`, a
+ * memory position — and says nothing at all while it is being walked up by
+ * repeated `RAISE`. So a stepped climb has to be polled or it is measured
+ * blind, and a box-driven one must **not** be: a `SETTINGS` frame is a command,
+ * and one arriving mid-move cancels the move. Polling through a `GOTO_HEIGHT`
+ * turns it into a ~10 mm nudge, which looks precisely like a control box that
+ * refuses to drive itself, and cost an afternoon to tell apart from one.
  */
 const POLL_MS = 400;
 
@@ -148,7 +149,6 @@ async function open() {
   await sleep(700);
   await link.send(Cmd.SETTINGS);
   await sleep(1200);
-  startPolling();
 }
 
 /** Let go of the dongle: it takes one connection, and the reset needs it. */
@@ -225,6 +225,8 @@ async function record(drive) {
 
 /** Climb LOW → HIGH on repeated RAISE, the way the app's slider is meant to. */
 async function climbStepped() {
+  // Only here: nothing streams a height during a step climb.
+  startPolling();
   const samples = await record(async () => {
     const deadline = Date.now() + CLIMB_LIMIT_MS;
     // `height === null` is not "not there yet", it is "no idea" — and pulsing
@@ -234,6 +236,7 @@ async function climbStepped() {
       await sleep(PULSE_MS);
     }
   });
+  stopPolling();
   // On one-touch a step command is not necessarily a step: the box may take it
   // as "go", and go. Never leave a climb without saying stop.
   await tell(Cmd.STOP);

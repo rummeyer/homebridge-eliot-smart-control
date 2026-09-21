@@ -15,10 +15,13 @@ export interface DeskConfig {
   /**
    * How often to ask an idle desk for its height, in seconds. 0 disables it.
    *
-   * The control box does not report its height by itself — not even while
-   * moving. `SETTINGS` (`0x07`) is answered with one, and that is the only way
-   * a height ever arrives. So this is not a backstop for the handset; it is
-   * the whole source of position while nothing else is asking.
+   * The control box streams its height while it drives itself, so this is only
+   * for what happens in between: somebody using the handset, or the desk being
+   * moved while Homebridge was not connected.
+   *
+   * Leave it leisurely. `SETTINGS` is a command, and one that arrives while the
+   * box is driving to a position cancels the move — at a few hundred
+   * milliseconds it turns every move into a ten-millimetre nudge.
    */
   idlePollSeconds?: number;
   /**

@@ -23,12 +23,13 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Fixed
 
-- **`idlePollSeconds` is documented correctly.** It claimed the desk reports
-  its height by itself while moving. It never does: the control box answers
-  `SETTINGS` with a height and sends nothing unprompted, so that poll is the
-  only source of position rather than a backstop for the handset. The wrong
-  assumption is why several tools in `tools/` drove the desk while watching a
-  height that could not change.
+- **`idlePollSeconds` says what the poll must stay clear of.** The desk does
+  stream its height while the control box drives itself — the note claiming
+  otherwise was wrong and has been withdrawn. What is worth documenting is the
+  hazard in the other direction: `SETTINGS` is a command, and one arriving
+  mid-move cancels the move, so a poll of a few hundred milliseconds turns
+  every move into a ten-millimetre nudge. The plugin's 30 s idle poll was never
+  anywhere near that; the tools in `tools/` briefly were.
 
 ## [1.1.0] — 2026-09-21
 

@@ -65,9 +65,16 @@ await link.send(Cmd.SETTINGS); await sleep(1200);
 // The box answers SETTINGS with a height and never sends one unprompted, so
 // without this the desk can drive its whole travel while this tool watches a
 // height that never changes and calls it "did not move".
+// Off by default, and that is the whole finding: a SETTINGS frame is a command,
+// and one arriving mid-move cancels a move the control box is driving itself.
+// Polling at 400 ms turned every MOVE_n into a ~10 mm nudge and looked exactly
+// like a desk that had forgotten how to drive. The box streams its height while
+// it drives, so there is nothing to poll for anyway. --poll=<ms> is kept only
+// so the effect can be reproduced on purpose.
+const POLL_MS = Number(process.argv.find((a) => a.startsWith('--poll='))?.split('=')[1] ?? 0);
 const poller = setInterval(() => {
-  link.send(Cmd.SETTINGS).catch(() => {});
-}, 400);
+  if (POLL_MS > 0) link.send(Cmd.SETTINGS).catch(() => {});
+}, POLL_MS > 0 ? POLL_MS : 3600_000);
 process.on('exit', () => clearInterval(poller));
 
 const target = memories[SLOT];

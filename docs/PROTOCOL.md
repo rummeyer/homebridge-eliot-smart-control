@@ -352,64 +352,34 @@ that answers queries, accepts every command, moves nothing, and streams `04`
 where the height report belongs — which looks exactly like a desk that has lost
 its calibration, and is not one.
 
-### The control box never reports its height unprompted
+### When the box streams its height, and when a poll cancels the move
 
-Not while moving, not after a command, never. `SETTINGS` (`0x07`) is answered
-with a `HEIGHT` frame, and that is the only way a height arrives.
+The control box streams `HEIGHT` frames, several a second, for as long as it is
+driving itself — a `GOTO_HEIGHT`, a memory position. It says nothing at all
+while it is being walked up by repeated `RAISE` or `LOWER`, because then it is
+not driving, it is being pushed.
 
-This was assumed the other way round for a long time, and it is written into
-`idlePollSeconds` as "the desk reports by itself while moving". It does not.
-Every tool here that drove the desk without polling was measuring blind: it
-watched a height that never changed and concluded the desk had not moved. One
-of them concluded that for forty-five seconds while pulsing `RAISE`, and drove
-the desk into its top stop hard enough to cost it its calibration.
+**A `SETTINGS` poll during a self-driven move cancels the move.** `0x07` is a
+command like any other, and the box abandons what it was doing to answer it. At
+a 400 ms poll interval a `MOVE_n` covers about ten millimetres and stops.
 
-Anything that drives this desk must poll, and must refuse to drive when it has
-no height to poll for.
+This is worth stating plainly because the failure is so convincing. On
+21.09.2026 a poll was added to three tools here on the theory that the box never
+reported its height unprompted — which is true of step-driven movement and
+false of everything else. Every `MOVE_n` and `GOTO_HEIGHT` then produced the
+same ~10 mm nudge, on a desk whose handset worked perfectly, and the afternoon
+went into motion modes, resets and a mains power cycle looking for the cause.
+The settings block was byte-for-byte identical before and after. The cause was
+the poll.
 
-### Unsolved: the control box stopped driving itself
+So:
 
-On the morning of 21.09.2026 this desk drove itself. One `MOVE_1` at 08:23:14
-and it arrived at 802 mm twelve seconds later, with nothing else sent in
-between — the log shows the single frame. By that evening the same command
-moved it six millimetres and stopped, and so did `GOTO_HEIGHT`. It has not
-driven itself since.
+- A move the box drives: send it, then listen. Do not send anything.
+- A climb on step commands: poll, or measure nothing.
+- Idle: poll, at the leisurely interval `idlePollSeconds` describes.
 
-`MOTION_MODE` (`0x19`) is the obvious suspect and does not survive the
-evidence. The Jarvis notes give `0` as hold-to-move and `1` as one-touch, and
-one-touch is what makes a box drive to a position unattended:
-
-| when | stored `0x19` | `MOVE_n` over the dongle |
-|---|---|---|
-| before any reset | `0` | drove fully |
-| after reset 1 | `0` | nudge, ~10 mm |
-| after reset 2 | `1` | nudge |
-| after a mains power cycle | `1` | nudge |
-| after reset 3 | `1` | nudge |
-
-Neither value predicts the behaviour. Reset 3 demonstrably committed the rest
-of the block — the desk came back slow, from the eco and velocity stored before
-it — so the stored `1` was made live and self-driving still did not return.
-
-Other things observed the same day, none of them explained:
-
-- `0x18` read back as `1` after a mains power cycle, having been `0` before it,
-  with nothing written in between. The stored block is not as stable as the
-  rest of these notes assume.
-- Between the first reset and the last, the box twice lost its zero and
-  streamed `0x04` where the height belongs. Both times it was being driven by
-  repeated step commands.
-- A handset re-home restores the zero. Whether it commits the stored block was
-  not established; reset 3, which the box itself asked for, did.
-
-What has not been tried is the app's *Automatischer Reset*, which writes the
-phone's stored configuration to the desk before resetting it. That is the one
-operation known to have produced a self-driving desk, and the difference
-between it and a hand re-home is the most promising place to look next.
-
-Until this is understood, a plugin cannot assume `GOTO_HEIGHT` will drive a
-desk that answered it yesterday. The step fallback is not a legacy path for old
-control boxes; it is what keeps this one working.
+The plugin was never affected. It polls every 30 s while idle and listens
+during a move, which is the right shape by construction.
 
 ### There is no reset command
 
