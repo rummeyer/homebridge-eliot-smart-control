@@ -22,7 +22,10 @@ a Raspberry Pi with nothing but `npm install node-ble`:
 | `eliot-probe.js ask <MAC>` | Read height, limits and memory positions. **Does not move the desk** |
 | `link-smoke.js <MAC>` | The same, through the plugin's own transport |
 | `desk-test.js <MAC> <percent…>` | **Moves the desk** to each position in turn |
-| `move-test.js`, `goto-stop-test.js`, `conflict-test.js` | **Move the desk.** Each was written to answer one question about the protocol; see the header of each |
+| `state-check.js <MAC>` | Why will this desk not move? **Does not move the desk** |
+| `set-lock.js <MAC> on\|off` | Put the child lock into a given state. **Does not move the desk** |
+| `set-setting.js <MAC> …` | Write one byte of the settings block and read it back. **Does not move the desk** |
+| `reset-drive.js <MAC>` | **Moves the desk all the way down**, so the control box finds its zero again |
 
 The dongle takes one connection at a time, so Homebridge has to be stopped
 before any of these can connect:

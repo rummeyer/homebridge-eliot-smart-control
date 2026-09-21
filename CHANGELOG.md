@@ -6,6 +6,23 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **The hardware tools stay out of the npm package.** `tools/` is a workbench
+  for a Raspberry Pi with a dongle attached, not something an install needs:
+  117 kB of it shipped to every user, a dozen scripts of which drive the desk
+  and one of which drives it to the floor. Finding a dongle, the one thing a
+  user might have wanted from it, is the scan button in the config UI.
+
+### Removed
+
+- **Fourteen single-question probes.** Each was written to settle one point
+  about the protocol — whether `VELOCITY` bites, whether a memory move can be
+  interrupted, what `VERSION` answers — and each of those answers, with the
+  measurements behind it, is written up in `docs/PROTOCOL.md`. The scripts were
+  the scaffolding, and the reference is the thing that was being built. What
+  remains in `tools/` is the eight that answer a question you can still have.
+
 ## [1.6.2] — 2026-09-21
 
 ### Changed
