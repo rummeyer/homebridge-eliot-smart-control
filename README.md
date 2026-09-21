@@ -1,5 +1,5 @@
 <p align="center">
-  <img src="https://raw.githubusercontent.com/rummeyer/homebridge-eliot-smart-control/main/branding/icon.png" alt="" width="120" height="120">
+  <img src="https://raw.githubusercontent.com/rummeyer/homebridge-eliot-smart-control/main/docs/icon.png" alt="" width="120" height="120">
 </p>
 
 <h1 align="center">homebridge-eliot-smart-control</h1>

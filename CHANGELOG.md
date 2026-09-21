@@ -12,7 +12,7 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 - **The plugin has an icon**: a photograph of the desk, square, at the top of
   the README and on the npm page. A copy sized for the Homebridge plugin icon
-  request sits in `branding/` — Homebridge hosts those icons itself, so the
+  request sits in `docs/` — Homebridge hosts those icons itself, so the
   repository holds the source rather than the thing the UI reads.
 
 ## [1.6.0] — 2026-09-21

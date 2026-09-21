@@ -52,6 +52,7 @@
     "homebridge-ui",
     "tools",
     "docs",
+    "!docs/*.png",
     "config.schema.json",
     "README.md",
     "CHANGELOG.md",
