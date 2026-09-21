@@ -6,6 +6,27 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.6.2] — 2026-09-21
+
+### Changed
+
+- **The plugin declares the transport it speaks.** `supports-hap` in the
+  keywords, which is how Homebridge now expects a plugin to say whether it
+  publishes over HAP, Matter or both.
+- **`required` in the settings schema is spelled the way JSON Schema spells
+  it** — an array on the object rather than `"required": true` on each field.
+  The Homebridge UI reads both; only one of them is valid JSON Schema.
+- **The plugin icon lives in `docs/` and stays out of the npm package.** It is
+  loaded from GitHub where it is shown, so shipping 280 kB of photograph to
+  every install bought nothing.
+
+### Fixed
+
+- **`MOTION_MODE` in the protocol reference had its two values swapped.** One
+  touch is `0` and hold-to-move is `1`, as the Eliot app's own command table
+  and its reader both have it. Nothing in the plugin writes or interprets that
+  setting, so this is documentation only.
+
 ## [1.6.1] — 2026-09-21
 
 ### Added
@@ -390,7 +411,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.1...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.2...HEAD
+[1.6.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.1...v1.6.2
 [1.6.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.0...v1.6.1
 [1.6.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.2...v1.6.0
 [1.5.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.5.1...v1.5.2
