@@ -103,6 +103,14 @@ export interface AutoMoveConfig {
   windows?: string[];
   /** Which days it runs on. Monday to Friday unless said otherwise. */
   days?: DayName[];
+  /**
+   * Switch auto movement off again at the end of each day.
+   *
+   * The switch then means "move me today" rather than "move me from now on",
+   * and each morning is a decision. Off by default, so the switch keeps the
+   * behaviour it has: once on, on until switched off.
+   */
+  switchOffDaily?: boolean;
 }
 
 export const DEFAULT_AUTO_MOVE = {
@@ -112,6 +120,7 @@ export const DEFAULT_AUTO_MOVE = {
   warnMinutes: 5,
   windows: ['08:00-12:00', '13:00-16:00'],
   days: ['mon', 'tue', 'wed', 'thu', 'fri'] as DayName[],
+  switchOffDaily: false,
 };
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -219,6 +228,10 @@ export function validateAutoMove(auto: AutoMoveConfig | undefined, where: string
         }
       }
     }
+  }
+
+  if (auto.switchOffDaily !== undefined && typeof auto.switchOffDaily !== 'boolean') {
+    problems.push(`${at}.switchOffDaily must be true or false`);
   }
 
   if (auto.days !== undefined) {

@@ -93,6 +93,7 @@ dongle for five seconds.
 | **Child lock switch** | on | Offer the desk's child lock |
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect only after the desk is reset by hand |
 | **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
+| **Ask again each day** | off | Switch auto movement off at the end of each day, so it only runs on days you turn it on |
 
 Or by hand, in `config.json`:
 
@@ -133,6 +134,13 @@ you never do it the feature still works, silently.
 
 Outside the configured hours nothing moves and no warning is raised — a phone
 buzzing at 17:05 about a move that will never happen is worse than silence.
+
+**Ask again each day** turns the switch off at the end of the day, so it means
+"move me today" rather than "move me from now on". Without it the switch is a
+standing instruction, which is right for a desk used the same way every day and
+wrong for one that is not: a week away, and it has been cycling an empty room
+for five days. The day is remembered rather than timed, so a restart at 23:59
+does not hand it a fresh one.
 
 ## Things worth knowing
 
@@ -185,6 +193,14 @@ Move Homebridge closer, or put a second one near the desk.
 **A dongle that stays silent while plugged in and powered is broken.** Obvious
 written down, indistinguishable from a range problem in practice, and worth
 ruling out early by trying another one. It cost a day here.
+
+**The tile shows nothing, or its room cannot be changed.** Restart the Home
+app, and the phone if that is not enough. The Home app keeps its own copy of
+what an accessory offers, and updating the plugin can change that — new
+switches, a sensor, a characteristic that was not there before. Until the app
+refetches it, the tile can sit blank or refuse to be edited while the plugin is
+publishing perfectly good values. Seen twice on one afternoon of changes, and
+resolved by restarting the app both times.
 
 **Installing or updating prints a wall of `npm ERR!` and works anyway.** That
 is `usocket`, an *optional* native dependency of `dbus-next`, which reaches

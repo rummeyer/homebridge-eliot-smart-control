@@ -11,6 +11,7 @@ const OPTIONS = {
   windows: ['08:00-12:00', '13:00-16:00'],
   // Monday to Friday.
   days: [1, 2, 3, 4, 5],
+  switchOffDaily: false,
 };
 
 /** A Monday, so the weekday rules apply without saying so every time. */
@@ -150,4 +151,48 @@ test('a manual move while switched off changes nothing', () => {
   const mover = new AutoMover(OPTIONS);
   mover.noteManualMove(at(9).getTime());
   assert.equal(mover.dueAt, null);
+});
+
+test('with the daily switch-off, a new day turns it off', () => {
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
+  mover.setEnabled(true, at(9));
+  assert.equal(mover.enabled, true);
+
+  // Later the same day it carries on.
+  assert.equal(mover.poll(at(9, 30), 800, false).kind, 'none');
+  assert.equal(mover.enabled, true);
+
+  // Tuesday. It does not matter that this is also a working day.
+  const tuesday = new Date(2026, 8, 22, 9, 0, 0);
+  assert.equal(mover.poll(tuesday, 800, false).kind, 'off');
+  assert.equal(mover.enabled, false, 'somebody has to ask for it again');
+});
+
+test('without it, the switch stays on across days', () => {
+  const mover = new AutoMover(OPTIONS);
+  mover.setEnabled(true, at(9));
+
+  const tuesday = new Date(2026, 8, 22, 9, 0, 0);
+  mover.poll(tuesday, 800, false);
+  assert.equal(mover.enabled, true, 'the default is a standing instruction');
+});
+
+test('a restart in the evening does not hand it a fresh day', () => {
+  // What the accessory does on startup: restore the switch and the day it was
+  // switched on for. Treating that as a switch-on would make "off for the new
+  // day" last only until the next time Homebridge came up.
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
+  mover.restore(true, '2026-09-21');
+
+  assert.equal(mover.poll(at(23, 30), 800, false).kind, 'none', 'still Monday');
+
+  const tuesday = new Date(2026, 8, 22, 8, 30, 0);
+  assert.equal(mover.poll(tuesday, 800, false).kind, 'off');
+});
+
+test('switching off by hand forgets the day too', () => {
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
+  mover.setEnabled(true, at(9));
+  mover.setEnabled(false, at(10));
+  assert.equal(mover.enabledDay, null);
 });

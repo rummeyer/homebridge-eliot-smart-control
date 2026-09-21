@@ -243,8 +243,16 @@ export class EliotAccessory {
       warnMinutes,
       windows: auto.windows,
       days: auto.days.map((d) => DAY_NAMES.indexOf(d)).filter((d) => d >= 0),
+      switchOffDaily: auto.switchOffDaily,
     });
-    this.#mover.setEnabled(this.#accessory.context.autoMove === true);
+    // Restored, not switched on: the day it was switched on for comes back with
+    // it, so a restart in the evening does not hand it a fresh day.
+    this.#mover.restore(
+      this.#accessory.context.autoMove === true,
+      typeof this.#accessory.context.autoMoveDay === 'string'
+        ? this.#accessory.context.autoMoveDay
+        : null,
+    );
 
     const switchSubtype = 'automove';
     this.#autoService =
@@ -291,12 +299,24 @@ export class EliotAccessory {
 
   #setAutoMove(on: boolean): void {
     this.#mover?.setEnabled(on);
-    this.#accessory.context.autoMove = on;
-    this.#platform.api.updatePlatformAccessories([this.#accessory]);
+    this.#rememberAutoMove(on);
     if (!on) {
       this.#warn(false);
     }
     this.#platform.log.info(`${this.#config.name}: auto movement ${on ? 'on' : 'off'}`);
+  }
+
+  /**
+   * Store the switch and the day it was switched on for.
+   *
+   * The day matters as much as the state: without it a restart looks like
+   * somebody switching it on again, and "off for the new day" would last only
+   * until the next time Homebridge came up.
+   */
+  #rememberAutoMove(on: boolean): void {
+    this.#accessory.context.autoMove = on;
+    this.#accessory.context.autoMoveDay = on ? (this.#mover?.enabledDay ?? null) : null;
+    this.#platform.api.updatePlatformAccessories([this.#accessory]);
   }
 
   /** Raise or withdraw the warning, without waking HomeKit for no change. */
@@ -330,6 +350,21 @@ export class EliotAccessory {
     }
     if (action.kind === 'clear') {
       this.#warn(false);
+      return;
+    }
+    if (action.kind === 'off') {
+      // A new day. The switch in the Home app has to follow, or it would show
+      // as on while nothing happens, which is the worst of both.
+      this.#autoService?.updateCharacteristic(
+        this.#platform.api.hap.Characteristic.On,
+        false,
+      );
+      this.#warn(false);
+      this.#rememberAutoMove(false);
+      this.#platform.log.info(
+        `${this.#config.name}: auto movement switched off for the new day; ` +
+          'turn it on when you want it',
+      );
       return;
     }
 

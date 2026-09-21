@@ -6,6 +6,21 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Ask again each day**, an option for automatic sit/stand: the *Auto
+  Movement* switch turns itself off at the end of the day, so it means "move me
+  today" rather than "move me from now on". Off by default, so the switch keeps
+  the behaviour it has. The day is remembered rather than timed, so a restart
+  late in the evening does not hand it a fresh one.
+
+### Changed
+
+- **Troubleshooting covers a blank tile and a room that will not change.** Both
+  are the Home app holding an old copy of what the accessory offers, and both
+  are fixed by restarting it — worth writing down, since the plugin can be
+  publishing perfectly good values throughout.
+
 ## [1.5.2] — 2026-09-21
 
 ### Changed

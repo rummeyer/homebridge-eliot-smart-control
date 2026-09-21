@@ -27,6 +27,15 @@ export interface AutoMoveOptions {
   windows: string[];
   /** Weekdays it runs on, `0` Sunday through `6` Saturday. */
   days: number[];
+  /**
+   * Switch itself off when the day it was switched on for is over.
+   *
+   * So that it runs on the days somebody asked for it and not on every day
+   * afterwards. Without this the switch is a standing instruction, which is
+   * fine for a desk that is used the same way daily and wrong for one that is
+   * not — a week away and it has been cycling an empty room for five days.
+   */
+  switchOffDaily: boolean;
 }
 
 /**
@@ -38,11 +47,20 @@ export interface AutoMoveOptions {
  */
 export type AutoMoveAction =
   | { kind: 'none' }
+  /** Switched itself off for the day; the switch in HomeKit must follow. */
+  | { kind: 'off' }
   | { kind: 'warn'; inMinutes: number }
   | { kind: 'clear' }
   | { kind: 'move'; heightMm: number; to: 'sitting' | 'standing' };
 
 const MINUTE = 60_000;
+
+/** A local calendar day, as `2026-09-21`. Local, because the windows are. */
+function dayKey(when: Date): string {
+  const month = String(when.getMonth() + 1).padStart(2, '0');
+  const day = String(when.getDate()).padStart(2, '0');
+  return `${when.getFullYear()}-${month}-${day}`;
+}
 
 /**
  * Parse `"08:00-12:00"`.
@@ -76,6 +94,15 @@ export class AutoMover {
   #warned = false;
   /** Whether the owner has switched this on. Off until told otherwise. */
   #enabled = false;
+  /**
+   * The day it was switched on for, as `2026-09-21`.
+   *
+   * A date rather than a timer: a timer set for midnight does not survive a
+   * restart, and a desk whose plugin restarted at 23:59 would go on moving the
+   * next day. Comparing the day it was switched on against the day it is now
+   * gives the same answer however often the plugin stops and starts.
+   */
+  #enabledDay: string | null = null;
 
   constructor(options: AutoMoveOptions) {
     this.#opts = options;
@@ -96,12 +123,24 @@ export class AutoMover {
    * countdown rather than pausing it — coming back to a desk that moves the
    * instant it is re-enabled is not what the switch appears to promise.
    */
-  setEnabled(on: boolean): void {
+  setEnabled(on: boolean, now: Date = new Date()): void {
     this.#enabled = on;
+    this.#enabledDay = on ? dayKey(now) : null;
     if (!on) {
       this.#dueAt = null;
       this.#warned = false;
     }
+  }
+
+  /** The day it was switched on for, so a restart can carry it across. */
+  get enabledDay(): string | null {
+    return this.#enabledDay;
+  }
+
+  /** Restore what a previous run had, without treating it as a fresh switch-on. */
+  restore(enabled: boolean, day: string | null): void {
+    this.#enabled = enabled;
+    this.#enabledDay = enabled ? day : null;
   }
 
   /** When the next move is due, for the log and for tests. */
@@ -157,6 +196,14 @@ export class AutoMover {
    */
   poll(now: Date, heightMm: number | null, busy: boolean): AutoMoveAction {
     const ms = now.getTime();
+
+    // Before anything else: a new day ends it, wherever the countdown had got
+    // to and whether or not this is a working day. Checked on every poll rather
+    // than at a particular hour, so it holds however long the plugin was down.
+    if (this.#enabled && this.#opts.switchOffDaily && this.#enabledDay !== dayKey(now)) {
+      this.setEnabled(false, now);
+      return { kind: 'off' };
+    }
 
     if (!this.#enabled || !this.#isWorkingTime(now)) {
       // Outside the hours nothing is pending, and any warning is withdrawn —
