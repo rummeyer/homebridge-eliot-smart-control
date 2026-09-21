@@ -105,6 +105,51 @@ such control box. It is covered by tests and by nothing else.
   control box, measured rather than assumed, which is why no switches were
   built for them.
 
+## [0.4.0] — 2026-09-18
+
+Written after the fact: the 0.4.0 release never added its own entry, and this
+one is reconstructed from the commits it contained.
+
+### Added
+
+- **The control box drives the desk itself.** The Eliot Android app turns out
+  to be React Native, so its command table is plain JavaScript in the bundle,
+  and it holds two commands the published Jiecang write-ups do not:
+  `GOTO_HEIGHT` (`0x1B`, big-endian millimetres) and `STOP` (`0x2B`). Both
+  verified against the desk — a move landed 2 mm off target on a single
+  command, and `STOP` halted one after 13 mm of coasting.
+- A changelog, and `prepare` / `prepublishOnly` scripts, so a stale build or a
+  failing suite cannot reach the registry. CI runs across the three Node
+  versions `package.json` claims to support, and needs no Bluetooth: the
+  transport reports an unreachable D-Bus rather than throwing.
+
+### Changed
+
+- **Slider moves land on the target** rather than within about 1%, on the
+  control box's own ramp, and HoldPosition is a real stop instead of an
+  approximation. The step-command loop existed only because neither command was
+  known to exist; it stays as a fallback for a control box that does not
+  understand `GOTO_HEIGHT`, and has yet to meet one.
+- The README setup is reordered around the settings page now that it can find
+  the dongle, and troubleshooting says plainly that a dongle which stays silent
+  while powered is simply broken.
+
+### Fixed
+
+- **A cancelled move could cancel its replacement.** Cancelling fires `STOP`
+  and then a step command as insurance; unawaited, that step arrived after the
+  next destination had been set and stopped the new move instead.
+- **A desk that never started looked like one that had finished.** A control
+  box ignoring `GOTO_HEIGHT` was judged by the "held still long enough to have
+  arrived" rule, which is the right rule for a move that happened.
+
+### Removed
+
+- The desk's real Bluetooth address, which was in the README, the schema
+  placeholder and `src/config.ts`, and so shipped compiled into `dist` as well.
+  Not a secret, but it identifies a particular piece of hardware and had no
+  reason to travel.
+
 ## [0.3.1] — 2026-09-18
 
 ### Fixed
