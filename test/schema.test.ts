@@ -72,3 +72,34 @@ test('the weekday choices are the ones the plugin understands', () => {
   const offered = desk.autoMove.properties.days.items.enum;
   assert.deepEqual([...offered].sort(), ['fri', 'mon', 'sat', 'sun', 'thu', 'tue', 'wed']);
 });
+
+test('every default sits inside the bounds the field allows', () => {
+  const walk = (node: unknown, path: string): void => {
+    if (node === null || typeof node !== 'object') {
+      return;
+    }
+    const field = node as Record<string, unknown>;
+    if (typeof field.default === 'number') {
+      if (typeof field.minimum === 'number') {
+        assert.ok(field.default >= field.minimum, `${path}: default is below its own minimum`);
+      }
+      if (typeof field.maximum === 'number') {
+        assert.ok(field.default <= field.maximum, `${path}: default is above its own maximum`);
+      }
+    }
+    for (const [key, value] of Object.entries(field)) {
+      walk(value, `${path}.${key}`);
+    }
+  };
+  walk(schema, 'schema');
+});
+
+test('the heights allow the travel a sit/stand desk actually has', () => {
+  const auto = desk.autoMove.properties;
+  // This desk reports 642-1285 mm of physical travel; the field has to reach
+  // the ends of that, or a limit somebody cleared becomes unconfigurable.
+  for (const key of ['sittingMm', 'standingMm']) {
+    assert.ok(auto[key].minimum <= 650, `${key} cannot reach a low desk`);
+    assert.ok(auto[key].maximum >= 1280, `${key} cannot reach a tall one`);
+  }
+});

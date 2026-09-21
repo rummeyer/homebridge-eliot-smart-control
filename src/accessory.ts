@@ -84,6 +84,8 @@ export class EliotAccessory {
   #warnService: Service | undefined;
   #mover: AutoMover | undefined;
   #autoTimer: NodeJS.Timeout | undefined;
+  /** Heights already complained about, so the log says it once and not hourly. */
+  readonly #clamped = new Set<string>();
 
   /**
    * @param transport Stand-in for the Bluetooth link. Only tests pass one;
@@ -309,19 +311,24 @@ export class EliotAccessory {
     if (state.minMm === null || state.maxMm === null) {
       return;
     }
-    // The desk's own limits win. A sitting height configured below what this
-    // desk will go to is not an error worth refusing over — the desk simply
-    // cannot honour it, and going as low as it does is what was meant.
-    if (action.heightMm < state.minMm || action.heightMm > state.maxMm) {
-      this.#platform.log.warn(
-        `${this.#config.name}: ${action.to} is set to ${action.heightMm} mm, outside the ` +
-          `desk's ${state.minMm}–${state.maxMm} mm; going as far as it will`,
+
+    // The desk's own limits win, and a height outside them becomes the limit
+    // rather than an error: somebody who asks to sit at 650 on a desk that
+    // stops at 700 means "as low as it goes", and refusing to move at all
+    // would be a strange way to honour that. Said once per height — it would
+    // otherwise be in the log every half hour for as long as the setting
+    // stands, which is how a log stops being read.
+    const target = Math.min(Math.max(action.heightMm, state.minMm), state.maxMm);
+    if (target !== action.heightMm && !this.#clamped.has(action.to)) {
+      this.#clamped.add(action.to);
+      this.#platform.log.info(
+        `${this.#config.name}: ${action.to} is set to ${action.heightMm} mm and this desk ` +
+          `travels ${state.minMm}–${state.maxMm} mm, so it will use ${target} mm`,
       );
     }
+
     this.#platform.log.info(`${this.#config.name}: auto movement to ${action.to}`);
-    const outcome = await this.#desk.moveTo(
-      heightToPercent(action.heightMm, state.minMm, state.maxMm),
-    );
+    const outcome = await this.#desk.moveTo(heightToPercent(target, state.minMm, state.maxMm));
     if (outcome !== 'arrived') {
       this.#platform.log.warn(`${this.#config.name}: auto movement ended as ${outcome}`);
     }

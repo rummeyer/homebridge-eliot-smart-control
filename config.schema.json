@@ -89,16 +89,17 @@
                   "title": "Sitting height (mm)",
                   "type": "integer",
                   "default": 800,
-                  "minimum": 100,
-                  "maximum": 2000,
-                  "description": "Clamped to the desk's own limits if it cannot go that far."
+                  "minimum": 650,
+                  "maximum": 1280,
+                  "description": "Where the desk sits you down. The desk's own limits still win: a height below its soft minimum is treated as that minimum, so it never drives past one."
                 },
                 "standingMm": {
                   "title": "Standing height (mm)",
                   "type": "integer",
                   "default": 1200,
-                  "minimum": 100,
-                  "maximum": 2000
+                  "minimum": 650,
+                  "maximum": 1280,
+                  "description": "Where the desk stands you up. Must be above the sitting height."
                 },
                 "intervalMinutes": {
                   "title": "Move every (minutes)",
