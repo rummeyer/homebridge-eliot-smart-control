@@ -186,6 +186,15 @@ Move Homebridge closer, or put a second one near the desk.
 written down, indistinguishable from a range problem in practice, and worth
 ruling out early by trying another one. It cost a day here.
 
+**Installing or updating prints a wall of `npm ERR!` and works anyway.** That
+is `usocket`, an *optional* native dependency of `dbus-next`, which reaches
+here through `node-ble`. Its build uses a version of `node-gyp` too old for
+Node 22 and fails with `Cannot assign to read only property 'cflags'`. Because
+it is optional, npm reports the failure and carries on, and nothing here needs
+it — `dbus-next` falls back to its own socket implementation, which is what
+this plugin has always run on. There is nothing to fix at this end; the noise
+comes from two dependencies further down.
+
 **"No D-Bus system bus"** means BlueZ is not reachable: you are not on Linux, or
 you are in a container without `/var/run/dbus/system_bus_socket` mounted.
 
