@@ -150,19 +150,23 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
   ) {
     problems.push(`${where}.ecoMode must be "leave", "on" or "off"`);
   }
-  problems.push(...validateAutoMove(desk.autoMove, where));
   return problems;
 }
 
 /**
  * Check the auto-move block, if there is one.
  *
+ * Kept out of {@link validateDeskConfig} on purpose: a desk whose config does
+ * not validate is dropped altogether, and losing the desk from HomeKit because
+ * a warning interval was typed wrong is wildly out of proportion. These
+ * problems disable auto-movement and leave the desk alone.
+ *
  * Every field has a default, so the only things worth complaining about are
  * values that would make it behave in a way nobody could have meant: a sitting
  * height above the standing one, an interval shorter than the warning that is
  * supposed to precede it, a window that cannot be read.
  */
-function validateAutoMove(auto: AutoMoveConfig | undefined, where: string): string[] {
+export function validateAutoMove(auto: AutoMoveConfig | undefined, where: string): string[] {
   if (auto === undefined) {
     return [];
   }
@@ -183,13 +187,23 @@ function validateAutoMove(auto: AutoMoveConfig | undefined, where: string): stri
   const sitting = positive(auto.sittingMm, 'sittingMm');
   const standing = positive(auto.standingMm, 'standingMm');
   const interval = positive(auto.intervalMinutes, 'intervalMinutes');
-  const warn = positive(auto.warnMinutes, 'warnMinutes');
+
+  // Zero is allowed here and nowhere else: it means "do not warn me", which is
+  // a real answer rather than a missing one.
+  let warn = auto.warnMinutes;
+  if (warn !== undefined && (!Number.isFinite(warn) || warn < 0)) {
+    problems.push(`${at}.warnMinutes must be zero or a positive number`);
+    warn = undefined;
+  }
 
   if (sitting !== undefined && standing !== undefined && sitting >= standing) {
     problems.push(`${at}.sittingMm must be below standingMm`);
   }
-  if (interval !== undefined && warn !== undefined && warn >= interval) {
-    problems.push(`${at}.warnMinutes must be shorter than intervalMinutes`);
+  if (interval !== undefined && warn !== undefined && warn > 0 && warn >= interval) {
+    problems.push(
+      `${at}.warnMinutes (${warn}) must be shorter than intervalMinutes (${interval}), ` +
+        'or the warning would arrive before the previous move had finished',
+    );
   }
 
   if (auto.windows !== undefined) {

@@ -105,14 +105,15 @@
                   "title": "Move every (minutes)",
                   "type": "integer",
                   "default": 30,
-                  "minimum": 1
+                  "minimum": 1,
+                  "description": "Time at one height before moving to the other. Must be longer than the warning."
                 },
                 "warnMinutes": {
                   "title": "Warn before (minutes)",
                   "type": "integer",
                   "default": 5,
-                  "minimum": 1,
-                  "description": "Must be shorter than the interval."
+                  "minimum": 0,
+                  "description": "Must be shorter than the interval. **0 turns the warning off** and removes the Desk Move Soon sensor from the Home app — the desk then just moves."
                 },
                 "windows": {
                   "title": "Working hours",

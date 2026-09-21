@@ -18,6 +18,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   notification and a sensor is the one thing the Home app will offer to notify
   about; turning that on is a one-time step in the Home app that nothing here
   can do for you.
+- **The settings page checks the pairs of values the schema cannot.** A warning
+  that is not shorter than the interval, a sitting height above the standing
+  one, and a working-hours entry that is not a time range are all said while
+  they are being typed, rather than in the Homebridge log after a restart where
+  nobody is looking.
+- **A warning of 0 turns the warning off** and takes the *Desk Move Soon*
+  sensor out of the Home app with it. A motion sensor that can never report
+  motion is a thing in somebody's house that does nothing and cannot be
+  explained.
 - **Moving the desk by hand restarts the timer**, which makes a nudge on the
   handset the snooze: the warning says it is about to move, you touch the
   handset, and you have another interval.

@@ -10,7 +10,7 @@
 import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge';
 
 import { AutoMover } from './auto-move.ts';
-import { DAY_NAMES, DEFAULT_AUTO_MOVE } from './config.ts';
+import { DAY_NAMES, DEFAULT_AUTO_MOVE, validateAutoMove } from './config.ts';
 import type { DeskConfig } from './config.ts';
 import { Desk } from './eliot/desk.ts';
 import type { DeskState, MoveOutcome, Transport } from './eliot/desk.ts';
@@ -210,13 +210,25 @@ export class EliotAccessory {
    */
   #setUpAutoMove(config: DeskConfig): void {
     const { Characteristic, Service: HapService } = this.#platform.api.hap;
+
+    // A problem here costs auto-movement and nothing else. The desk, its
+    // presets and its child lock are not this feature's to take away.
+    const problems = validateAutoMove(config.autoMove, config.name);
+    if (problems.length > 0) {
+      for (const problem of problems) {
+        this.#platform.log.error(`Auto movement is off: ${problem}`);
+      }
+      return;
+    }
+
     const auto = { ...DEFAULT_AUTO_MOVE, ...config.autoMove };
+    const warnMinutes = auto.warnMinutes > 0 ? auto.warnMinutes : 0;
 
     this.#mover = new AutoMover({
       sittingMm: auto.sittingMm,
       standingMm: auto.standingMm,
       intervalMinutes: auto.intervalMinutes,
-      warnMinutes: auto.warnMinutes,
+      warnMinutes,
       windows: auto.windows,
       days: auto.days.map((d) => DAY_NAMES.indexOf(d)).filter((d) => d >= 0),
     });
@@ -238,15 +250,25 @@ export class EliotAccessory {
 
     const sensorSubtype = 'automove-warning';
     const restoredSensor = this.#accessory.getServiceById(HapService.MotionSensor, sensorSubtype);
-    this.#warnService =
-      restoredSensor ??
-      this.#accessory.addService(HapService.MotionSensor, 'Desk Move Soon', sensorSubtype);
-    if (restoredSensor) {
-      this.#unprefix(this.#warnService, 'Desk Move Soon');
+    if (warnMinutes === 0) {
+      // No warning wanted, so no sensor: a motion sensor that can never report
+      // motion is a thing in somebody's Home app that does nothing and cannot
+      // be explained. Drop one left over from when a warning was configured.
+      if (restoredSensor) {
+        this.#accessory.removeService(restoredSensor);
+      }
+      this.#warnService = undefined;
     } else {
-      this.#name(this.#warnService, 'Desk Move Soon');
+      this.#warnService =
+        restoredSensor ??
+        this.#accessory.addService(HapService.MotionSensor, 'Desk Move Soon', sensorSubtype);
+      if (restoredSensor) {
+        this.#unprefix(this.#warnService, 'Desk Move Soon');
+      } else {
+        this.#name(this.#warnService, 'Desk Move Soon');
+      }
+      this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
     }
-    this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
 
     // A handset move is the snooze, and the only sign of a person this plugin
     // gets. It restarts the interval wherever the countdown had got to.

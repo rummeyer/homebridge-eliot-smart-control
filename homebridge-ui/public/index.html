@@ -43,6 +43,8 @@
   </div>
 </div>
 
+<div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
+
 <script>
   (async () => {
     const button  = document.getElementById('eliot-scan');
@@ -51,6 +53,69 @@
     const results = document.getElementById('eliot-results');
 
     await homebridge.showSchemaForm();
+
+    const check = document.getElementById('eliot-check');
+
+    /**
+     * Say what is wrong with the auto-movement settings, as they are typed.
+     *
+     * The schema can bound one field at a time and no more; every rule here is
+     * about two fields together, which JSON Schema cannot express and the form
+     * therefore cannot enforce. Without this the mistake is only discovered in
+     * the Homebridge log after a restart, where nobody is looking.
+     *
+     * The plugin checks all of this again on load. This is the earlier, kinder
+     * telling of it, not the only one.
+     */
+    function complaints(config) {
+      const problems = [];
+      for (const desk of config?.[0]?.desks ?? []) {
+        const auto = desk?.autoMove;
+        if (!auto) {
+          continue;
+        }
+        const where = desk.name ? `"${desk.name}"` : 'this desk';
+        const interval = Number(auto.intervalMinutes ?? 30);
+        const warn = Number(auto.warnMinutes ?? 5);
+        const sitting = Number(auto.sittingMm ?? 800);
+        const standing = Number(auto.standingMm ?? 1200);
+
+        if (warn > 0 && warn >= interval) {
+          problems.push(
+            `${where}: the warning (${warn} min) must be shorter than the interval ` +
+              `(${interval} min), or it would arrive before the previous move had finished. ` +
+              'Set it to 0 to turn the warning off.',
+          );
+        }
+        if (sitting >= standing) {
+          problems.push(
+            `${where}: the sitting height (${sitting} mm) must be below the standing one ` +
+              `(${standing} mm).`,
+          );
+        }
+        for (const window of auto.windows ?? []) {
+          if (!/^\s*\d{1,2}:\d{2}\s*-\s*\d{1,2}:\d{2}\s*$/.test(String(window))) {
+            problems.push(`${where}: "${window}" is not a time range like 08:00-12:00.`);
+          }
+        }
+      }
+      return problems;
+    }
+
+    function review(config) {
+      const problems = complaints(config);
+      check.textContent = problems.join(' ');
+      check.classList.toggle('eliot-hidden', problems.length === 0);
+    }
+
+    try {
+      review(await homebridge.getPluginConfig());
+      // Not every host version emits this; the check is a nicety, and the
+      // plugin's own validation is what actually keeps a bad value out.
+      homebridge.addEventListener?.('configChanged', (event) => review(event?.data));
+    } catch {
+      check.classList.add('eliot-hidden');
+    }
 
     const say = (text, kind) => {
       message.textContent = text;

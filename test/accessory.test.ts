@@ -471,6 +471,41 @@ test('the auto movement switch is remembered across a restart', async (t) => {
   );
 });
 
+test('a warning of zero means no sensor to warn with', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: { warnMinutes: 0 } } });
+
+  assert.ok(accessory.getServiceById('Switch', 'automove'), 'the switch is still there');
+  assert.equal(
+    accessory.getServiceById('MotionSensor', 'automove-warning'),
+    undefined,
+    'a sensor that can never report motion explains itself to nobody',
+  );
+});
+
+test('a sensor from when a warning was wanted is removed', async (t) => {
+  const withWarning = new FakeAccessory();
+  await start(t, withWarning, { desk: { autoMove: { warnMinutes: 5 } } });
+  assert.ok(withWarning.getServiceById('MotionSensor', 'automove-warning'));
+
+  const without = new FakeAccessory();
+  without.services = withWarning.services;
+  await start(t, without, { desk: { autoMove: { warnMinutes: 0 } } });
+
+  assert.equal(without.getServiceById('MotionSensor', 'automove-warning'), undefined);
+});
+
+test('a bad auto-move setting costs auto movement, not the desk', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, {
+    desk: { autoMove: { intervalMinutes: 30, warnMinutes: 30 } },
+  });
+
+  assert.equal(accessory.getServiceById('Switch', 'automove'), undefined, 'no auto movement');
+  assert.ok(accessory.getService('WindowCovering'), 'but the desk still works');
+  assert.ok(accessory.getServiceById('Switch', 'memory1'), 'and so do its presets');
+});
+
 test('no auto movement accessories unless it is configured', async (t) => {
   const accessory = new FakeAccessory();
   await start(t, accessory);
