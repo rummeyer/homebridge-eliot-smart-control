@@ -32,13 +32,6 @@ export interface DeskConfig {
    */
   memorySwitches?: boolean;
   /**
-   * What to call each memory switch in the Home app, in order.
-   *
-   * Defaults to "<desk> Memory 1" and so on, matching the numbering on the
-   * handset. Give as many as you care to name; the rest fall back.
-   */
-  memoryNames?: string[];
-  /**
    * Expose the desk's child lock as a switch. On by default.
    *
    * The only setting the control box reads back on this connection, so it is
@@ -95,9 +88,6 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
     problems.push(
       `${where}.mac must look like E5:11:22:33:44:55 (got ${JSON.stringify(desk.mac)})`,
     );
-  }
-  if (desk.memoryNames !== undefined && !Array.isArray(desk.memoryNames)) {
-    problems.push(`${where}.memoryNames must be a list of names`);
   }
   if (
     desk.idlePollSeconds !== undefined &&

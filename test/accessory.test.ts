@@ -369,6 +369,27 @@ test('a desk already holding the configured pair is not written to', async (t) =
   );
 });
 
+test('a switch renamed in the Home app keeps its name across a restart', async (t) => {
+  // ConfiguredName is the owner's name for the switch. Writing it on every
+  // start would undo their rename at the next restart, which is worse than not
+  // offering renaming at all — it looks like it worked until it does not.
+  const first = new FakeAccessory();
+  await start(t, first);
+
+  const renamed = first.getServiceById('Switch', 'memory1')!;
+  renamed.getCharacteristic('ConfiguredName').value = 'Sitzen';
+
+  const restarted = new FakeAccessory();
+  restarted.services = first.services;
+  await start(t, restarted);
+
+  assert.equal(
+    restarted.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value,
+    'Sitzen',
+    'the plugin named it once, when it made it, and not since',
+  );
+});
+
 test('the child lock is a stateful switch, on from the start', async (t) => {
   const accessory = new FakeAccessory();
   const { transport } = await start(t, accessory);

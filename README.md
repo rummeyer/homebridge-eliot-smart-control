@@ -89,9 +89,9 @@ dongle for five seconds.
 | **Name** | required | What the desk is called in the Home app |
 | **Dongle address** | required | Filled in for you by the scan |
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
-| **Memory switches** | on | Offer your stored positions as buttons |
-| **Memory names** | — | What to call them. Defaults to *Memory 1*…*Memory 4* |
+| **Memory switches** | on | Offer your stored positions as buttons. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
+| **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect only after the desk is reset by hand |
 
 Or by hand, in `config.json`:
 
@@ -102,7 +102,7 @@ Or by hand, in `config.json`:
     {
       "name": "Schreibtisch",
       "mac": "E5:11:22:33:44:55",
-      "memoryNames": ["Sitzen", "Stehen", "Besprechung"]
+      "ecoMode": "off"
     }
   ]
 }
@@ -123,6 +123,10 @@ wherever the desk actually is rather than trying again.
 
 **An unset memory gets no button.** If you store a new position on the handset,
 its button appears the next time the plugin connects.
+
+**Rename the switches in the Home app.** They arrive as *Memory 1*…*Memory 4*
+and the plugin names them only once, when it first creates them, so whatever
+you rename them to survives restarts.
 
 **The desk's own safety features are untouched.** Anti-collision and the soft
 limits live in the control box. The plugin adds limits of its own on top: it

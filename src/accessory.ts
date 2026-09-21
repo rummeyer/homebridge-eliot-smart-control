@@ -146,10 +146,12 @@ export class EliotAccessory {
       // Unlike the memory switches this needs nothing from the desk to exist,
       // so it is built here rather than waiting for the first report.
       const subtype = 'childlock';
+      const restored = accessory.getServiceById(HapService.Switch, subtype);
       this.#lockService =
-        accessory.getServiceById(HapService.Switch, subtype) ??
-        accessory.addService(HapService.Switch, `${config.name} Child Lock`, subtype);
-      this.#name(this.#lockService, 'Child Lock');
+        restored ?? accessory.addService(HapService.Switch, `${config.name} Child Lock`, subtype);
+      if (!restored) {
+        this.#name(this.#lockService, 'Child Lock');
+      }
       this.#lockService
         .getCharacteristic(Characteristic.On)
         .onGet(() => this.#lockState())
@@ -306,7 +308,7 @@ export class EliotAccessory {
         continue;
       }
 
-      const label = this.#config.memoryNames?.[slot - 1] ?? `Memory ${slot}`;
+      const label = `Memory ${slot}`;
       // A restored service is reused, but its handlers are NOT: Homebridge
       // brings services back from its cache without them, because they only
       // exist at runtime. Taking the service and skipping the wiring leaves a
@@ -314,7 +316,9 @@ export class EliotAccessory {
       const service =
         restored ??
         this.#accessory.addService(HapService.Switch, `${this.#config.name} ${label}`, subtype);
-      this.#name(service, label);
+      if (!restored) {
+        this.#name(service, label);
+      }
       // Momentary, not stateful. What these are for is going somewhere, and a
       // switch that stays on afterwards invites being switched off — which
       // would have to mean something, and there is no opposite of having gone
@@ -334,7 +338,14 @@ export class EliotAccessory {
     }
   }
 
-  /** Name a service so the Home app shows it under its own name. */
+  /**
+   * Name a service, once, when it is first created.
+   *
+   * Only then. `ConfiguredName` is the name the *owner* edits in the Home app,
+   * so writing it on every start would quietly undo their rename at the next
+   * Homebridge restart — and a rename that does not survive a restart is worse
+   * than no rename, because it looks like it worked.
+   */
   #name(service: Service, label: string): void {
     const { Characteristic } = this.#platform.api.hap;
     const full = `${this.#config.name} ${label}`;

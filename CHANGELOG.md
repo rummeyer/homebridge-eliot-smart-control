@@ -6,6 +6,21 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Removed
+
+- **The memory-name setting.** The Home app renames switches perfectly well,
+  which is where anyone would look first, and a list of names in a config file
+  that has to line up with slots 1 to 4 by position was the more awkward of the
+  two ways to do it. Names already configured are simply ignored; rename the
+  switches in the Home app instead.
+
+### Fixed
+
+- **A switch renamed in the Home app keeps its name.** The plugin wrote
+  `ConfiguredName` on every start, so a rename lasted until the next Homebridge
+  restart and then quietly reverted. It is now set once, when the switch is
+  first created. This applies to the child lock too.
+
 ### Changed
 
 - **Eco mode is a choice of three, not a checkbox**: leave the desk alone, eco

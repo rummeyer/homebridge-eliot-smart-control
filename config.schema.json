@@ -46,16 +46,7 @@
               "title": "Memory switches",
               "type": "boolean",
               "default": true,
-              "description": "Offer the desk's memory positions as switches. They spring back after being pressed, like a scene. Only positions the desk actually has are shown."
-            },
-            "memoryNames": {
-              "title": "Memory switch names",
-              "type": "array",
-              "items": {
-                "type": "string",
-                "title": "Name"
-              },
-              "description": "Optional names for memory 1 to 4, in that order. Leave empty for \"Memory 1\", \"Memory 2\" and so on."
+              "description": "Offer the desk's memory positions as switches. They spring back after being pressed, like a scene. Only positions the desk actually has are shown, so an unused memory gets no switch. Rename them in the Home app if \"Memory 1\" is not what you want."
             },
             "childLockSwitch": {
               "title": "Child lock as a switch",
@@ -109,16 +100,7 @@
         "desks[].idlePollSeconds",
         "desks[].ecoMode",
         "desks[].childLockSwitch",
-        "desks[].memorySwitches",
-        {
-          "key": "desks[].memoryNames",
-          "type": "array",
-          "orderable": false,
-          "buttonText": "Add name",
-          "items": [
-            "desks[].memoryNames[]"
-          ]
-        }
+        "desks[].memorySwitches"
       ]
     }
   ],
