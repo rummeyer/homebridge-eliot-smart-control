@@ -137,8 +137,7 @@ export class EliotAccessory {
     this.#service =
       accessory.getService(HapService.WindowCovering) ??
       accessory.addService(HapService.WindowCovering, config.name);
-    this.#service.setCharacteristic(Characteristic.Name, config.name);
-    this.#service.setCharacteristic(Characteristic.ConfiguredName, config.name);
+    this.#name(this.#service, config.name);
 
     this.#service
       .getCharacteristic(Characteristic.CurrentPosition)
@@ -165,14 +164,10 @@ export class EliotAccessory {
       // Unlike the memory switches this needs nothing from the desk to exist,
       // so it is built here rather than waiting for the first report.
       const subtype = 'childlock';
-      const restored = accessory.getServiceById(HapService.Switch, subtype);
       this.#lockService =
-        restored ?? accessory.addService(HapService.Switch, 'Child Lock', subtype);
-      if (restored) {
-        this.#unprefix(this.#lockService, 'Child Lock');
-      } else {
-        this.#name(this.#lockService, 'Child Lock');
-      }
+        accessory.getServiceById(HapService.Switch, subtype) ??
+        accessory.addService(HapService.Switch, 'Child Lock', subtype);
+      this.#name(this.#lockService, 'Child Lock');
       this.#lockService
         .getCharacteristic(Characteristic.On)
         .onGet(() => this.#lockState())
@@ -235,14 +230,10 @@ export class EliotAccessory {
     this.#mover.setEnabled(this.#accessory.context.autoMove === true);
 
     const switchSubtype = 'automove';
-    const restoredSwitch = this.#accessory.getServiceById(HapService.Switch, switchSubtype);
     this.#autoService =
-      restoredSwitch ?? this.#accessory.addService(HapService.Switch, 'Auto Movement', switchSubtype);
-    if (restoredSwitch) {
-      this.#unprefix(this.#autoService, 'Auto Movement');
-    } else {
-      this.#name(this.#autoService, 'Auto Movement');
-    }
+      this.#accessory.getServiceById(HapService.Switch, switchSubtype) ??
+      this.#accessory.addService(HapService.Switch, 'Auto Movement', switchSubtype);
+    this.#name(this.#autoService, 'Auto Movement');
     this.#autoService
       .getCharacteristic(Characteristic.On)
       .onGet(() => this.#mover?.enabled ?? false)
@@ -262,11 +253,7 @@ export class EliotAccessory {
       this.#warnService =
         restoredSensor ??
         this.#accessory.addService(HapService.MotionSensor, 'Desk Move Soon', sensorSubtype);
-      if (restoredSensor) {
-        this.#unprefix(this.#warnService, 'Desk Move Soon');
-      } else {
-        this.#name(this.#warnService, 'Desk Move Soon');
-      }
+      this.#name(this.#warnService, 'Desk Move Soon');
       this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
     }
 
@@ -505,11 +492,7 @@ export class EliotAccessory {
       // switch that is present in the Home app and does nothing when pressed.
       const service =
         restored ?? this.#accessory.addService(HapService.Switch, label, subtype);
-      if (restored) {
-        this.#unprefix(service, label);
-      } else {
-        this.#name(service, label);
-      }
+      this.#name(service, label);
       // Momentary, not stateful. What these are for is going somewhere, and a
       // switch that stays on afterwards invites being switched off — which
       // would have to mean something, and there is no opposite of having gone
@@ -530,40 +513,24 @@ export class EliotAccessory {
   }
 
   /**
-   * Name a service, once, when it is first created.
+   * Give a service the name it shows under by default.
    *
-   * Only then. `ConfiguredName` is the name the *owner* edits in the Home app,
-   * so writing it on every start would quietly undo their rename at the next
-   * Homebridge restart — and a rename that does not survive a restart is worse
-   * than no rename, because it looks like it worked.
+   * `Name` and nothing else. `ConfiguredName` looks like the right thing —
+   * it is the characteristic the Home app edits on the services that have it —
+   * but Switch, MotionSensor and WindowCovering are not among them, and adding
+   * it produces "Characteristic not in required or optional characteristic
+   * section" from Homebridge and an accessory the Home app treats as not quite
+   * conforming. Changing its room stops working, which is a strange symptom for
+   * a name.
    *
-   * The name is the label alone: "Memory 1", "Child Lock". The Home app already
-   * shows which accessory a switch belongs to, and in a room full of them the
-   * desk's name on every button is noise.
+   * Renaming still works, and always did: the Home app keeps the name the owner
+   * gave a service in its own database, on the phone, not on the accessory.
+   * Nothing written here can overwrite that. What this sets is only the name a
+   * service arrives under.
    */
   #name(service: Service, label: string): void {
     const { Characteristic } = this.#platform.api.hap;
     service.setCharacteristic(Characteristic.Name, label);
-    service.setCharacteristic(Characteristic.ConfiguredName, label);
-  }
-
-  /**
-   * Drop the desk's name from a switch this plugin named in an earlier version.
-   *
-   * Only when the name is still exactly what that version would have written.
-   * Anything else is the owner's, including a rename that happens to start with
-   * the desk's name, and is left alone — the point of naming once is that the
-   * name stops being ours after that.
-   */
-  #unprefix(service: Service, label: string): void {
-    const { Characteristic } = this.#platform.api.hap;
-    const old = `${this.#config.name} ${label}`;
-    if (service.getCharacteristic(Characteristic.ConfiguredName).value !== old) {
-      return;
-    }
-    service.setCharacteristic(Characteristic.Name, label);
-    service.setCharacteristic(Characteristic.ConfiguredName, label);
-    this.#platform.log.info(`${this.#config.name}: renamed "${old}" to "${label}"`);
   }
 
   /** Let a momentary switch fall back to off, the way a scene button does. */

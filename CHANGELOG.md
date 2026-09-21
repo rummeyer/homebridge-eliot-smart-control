@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Fixed
+
+- **The Home app can change the accessory's room again.** Services were being
+  given a `ConfiguredName`, which Switch, MotionSensor and WindowCovering do
+  not have — Homebridge said so on every start, and the Home app quietly
+  stopped letting the accessory be edited properly. Only `Name` is set now.
+  Renaming was never affected: the Home app keeps the names you give things in
+  its own database, on the phone, and nothing the accessory writes can overrule
+  that.
+
 ### Added
 
 - **Automatic sit/stand movement.** Set a sitting height, a standing height, an

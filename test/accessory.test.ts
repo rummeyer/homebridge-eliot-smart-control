@@ -374,69 +374,29 @@ test('switches are named without the desk in front of them', async (t) => {
   await start(t, accessory);
 
   assert.equal(
-    accessory.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value,
+    accessory.getServiceById('Switch', 'memory1')!.getCharacteristic('Name').value,
     'Memory 1',
   );
   assert.equal(
-    accessory.getServiceById('Switch', 'childlock')!.getCharacteristic('ConfiguredName').value,
+    accessory.getServiceById('Switch', 'childlock')!.getCharacteristic('Name').value,
     'Child Lock',
   );
 });
 
-test('an old prefixed name is tidied up on the next start', async (t) => {
+test('no service is given a ConfiguredName', async (t) => {
+  // Switch, MotionSensor and WindowCovering do not have this characteristic.
+  // Setting it anyway makes Homebridge warn and the Home app refuse to change
+  // the accessory's room — a strange symptom that costs a while to connect to
+  // a name. The Home app stores renames itself and never needed it.
   const accessory = new FakeAccessory();
-  await start(t, accessory);
-  const service = accessory.getServiceById('Switch', 'memory1')!;
-  // What a version before this one would have written.
-  service.getCharacteristic('ConfiguredName').value = 'Schreibtisch Memory 1';
+  await start(t, accessory, { desk: { autoMove: {} } });
 
-  const restarted = new FakeAccessory();
-  restarted.services = accessory.services;
-  await start(t, restarted);
-
-  assert.equal(
-    restarted.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value,
-    'Memory 1',
-  );
-});
-
-test('a rename that looks like the old default is still the owner\'s', async (t) => {
-  const accessory = new FakeAccessory();
-  await start(t, accessory);
-  // Starts with the desk's name, but is not what the old version wrote.
-  accessory.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value =
-    'Schreibtisch Memory 1 oben';
-
-  const restarted = new FakeAccessory();
-  restarted.services = accessory.services;
-  await start(t, restarted);
-
-  assert.equal(
-    restarted.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value,
-    'Schreibtisch Memory 1 oben',
-    'only an exact match is ours to change',
-  );
-});
-
-test('a switch renamed in the Home app keeps its name across a restart', async (t) => {
-  // ConfiguredName is the owner's name for the switch. Writing it on every
-  // start would undo their rename at the next restart, which is worse than not
-  // offering renaming at all — it looks like it worked until it does not.
-  const first = new FakeAccessory();
-  await start(t, first);
-
-  const renamed = first.getServiceById('Switch', 'memory1')!;
-  renamed.getCharacteristic('ConfiguredName').value = 'Sitzen';
-
-  const restarted = new FakeAccessory();
-  restarted.services = first.services;
-  await start(t, restarted);
-
-  assert.equal(
-    restarted.getServiceById('Switch', 'memory1')!.getCharacteristic('ConfiguredName').value,
-    'Sitzen',
-    'the plugin named it once, when it made it, and not since',
-  );
+  for (const service of accessory.services) {
+    assert.ok(
+      !service.characteristics.has('ConfiguredName'),
+      `${service.kind} ${service.subtype ?? ''} was given a ConfiguredName`,
+    );
+  }
 });
 
 test('auto movement is off until the switch is turned on', async (t) => {
