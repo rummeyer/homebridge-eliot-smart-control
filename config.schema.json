@@ -78,12 +78,11 @@
                   ]
                 }
               ],
-              "description": "Eco mode and travel speed, set as a pair: about 22 mm/s against 42 mm/s.\n\n**Takes effect only after the desk is reset by hand** — run it to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says."
+              "description": "Eco mode and travel speed, set as a pair: about 22 mm/s against 42 mm/s.<br><br><b>Takes effect only after the desk is reset by hand</b> — run it to the bottom and hold the down key until it re-homes. Until then it keeps its old speed, whatever this says."
             },
             "autoMove": {
-              "title": "Automatic sit/stand",
               "type": "object",
-              "description": "Move the desk between two heights on a timer. Adds an **Auto Movement** switch to the Home app, and nothing moves until you turn it on.",
+              "description": "Move the desk between two heights on a timer. Adds an <b>Auto Movement</b> switch to the Home app, and nothing moves until you turn it on.",
               "properties": {
                 "sittingMm": {
                   "title": "Sitting height (mm)",
@@ -113,7 +112,7 @@
                   "type": "integer",
                   "default": 5,
                   "minimum": 0,
-                  "description": "A **Desk Move Soon** sensor trips this long before each move; turn on its notifications in the Home app to be told. 0 turns the warning off and removes the sensor."
+                  "description": "A <b>Desk Move Soon</b> sensor trips this long before each move; turn on its notifications in the Home app to be told. 0 turns the warning off and removes the sensor."
                 },
                 "windows": {
                   "title": "Working hours",

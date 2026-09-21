@@ -103,3 +103,57 @@ test('the heights allow the travel a sit/stand desk actually has', () => {
     assert.ok(auto[key].maximum >= 1280, `${key} cannot reach a tall one`);
   }
 });
+
+test('field descriptions are HTML, not Markdown', () => {
+  // The settings page renders these as HTML. Markdown emphasis survives as
+  // literal asterisks, which is how **bold** shipped looking like **bold**.
+  // headerDisplay and footerDisplay are the exception: those are Markdown.
+  const walk = (node: unknown, path: string): void => {
+    if (node === null || typeof node !== 'object') {
+      return;
+    }
+    for (const [key, value] of Object.entries(node as Record<string, unknown>)) {
+      if (key === 'description' && typeof value === 'string') {
+        assert.ok(!value.includes('**'), `${path}.description has Markdown emphasis`);
+      }
+      walk(value, `${path}.${key}`);
+    }
+  };
+  walk(schema.schema, 'schema');
+});
+
+test('nothing is titled twice over', () => {
+  // A section rendered by a layout fieldset takes its heading from there. A
+  // title on the schema property as well renders the heading a second time,
+  // which is visible whenever the section is collapsed.
+  const titled = new Set<string>();
+  const walk = (node: unknown): void => {
+    if (node === null || typeof node !== 'object') {
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const item of node) {
+        walk(item);
+      }
+      return;
+    }
+    const item = node as Record<string, unknown>;
+    if (typeof item.key === 'string' && typeof item.title === 'string') {
+      titled.add(item.key);
+    }
+    walk(item.items);
+  };
+  walk(schema.layout);
+
+  for (const key of titled) {
+    const path = key.replace('desks[].', '');
+    const property = desk[path];
+    if (property) {
+      assert.equal(
+        property.title,
+        undefined,
+        `${key} is titled by the layout and by the schema, so it renders twice`,
+      );
+    }
+  }
+});
