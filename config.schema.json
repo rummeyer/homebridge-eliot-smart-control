@@ -3,7 +3,7 @@
   "pluginType": "platform",
   "singular": true,
   "headerDisplay": "Control an Eliot sit-stand desk with the Smart Dongle from the Home app, over Bluetooth. Requires Linux — the plugin talks to BlueZ.",
-  "footerDisplay": "The dongle advertises as **Schreibtisch** and has no vendor name, so it can be hard to spot. Run `node tools/eliot-probe.js scan` on the Homebridge host to find its address.\n\nThe desk appears as a window covering: 0% is the lowest height it is set to allow, 100% the highest. Those come from the desk's own limits, so changing them on the handset changes what 0% and 100% mean.",
+  "footerDisplay": "The dongle advertises under whatever name the desk has been given in the Eliot app, and carries no manufacturer name, so there is often nothing in a scan list to pick it out by. The scan above matches on the Bluetooth service it speaks instead, which is the same whatever it is called.\n\nThe desk appears as a window covering: 0% is the lowest height it is set to allow, 100% the highest. Those come from the desk's own limits, so changing them on the handset changes what 0% and 100% mean.",
   "schema": {
     "type": "object",
     "properties": {
@@ -23,8 +23,8 @@
               "title": "Name",
               "type": "string",
               "required": true,
-              "default": "Schreibtisch",
-              "placeholder": "Schreibtisch",
+              "default": "Desk",
+              "placeholder": "Desk",
               "description": "What the desk is called in the Home app."
             },
             "mac": {

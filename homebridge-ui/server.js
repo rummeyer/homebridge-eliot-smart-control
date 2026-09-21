@@ -2,9 +2,10 @@
  * Backend for the plugin's settings page in the Homebridge UI.
  *
  * Does the one thing that cannot be done from a form: find the dongle. It
- * advertises as `Schreibtisch` with no manufacturer name and no address on
- * most stickers, so picking it out of a scan list by eye means guessing. This
- * confirms candidates by the service they expose instead.
+ * advertises under whatever name the desk was given in the Eliot app, with no
+ * manufacturer name and no address on most stickers, so picking it out of a
+ * scan list by eye means guessing. This confirms candidates by the service they
+ * expose instead, which does not depend on what anybody called it.
  */
 import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-utils';
 

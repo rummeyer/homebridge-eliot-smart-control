@@ -67,11 +67,11 @@ your other accessories.
 desks**.
 
 This is the part worth having help with. The dongle does not announce itself:
-it appears as **`Schreibtisch`**, with no manufacturer name, and many units
-have nothing printed on them — in a scan list it sits among forty anonymous
-phones with nothing to tell them apart. The page looks for the Bluetooth
-service the desk actually speaks, so a result marked *confirmed* is the right
-device and not a good guess.
+it advertises under whatever name the desk was given in the Eliot app, carries
+no manufacturer name, and many units have nothing printed on them — in a scan
+list it sits among forty anonymous phones with nothing to tell them apart. The
+page looks for the Bluetooth service the desk actually speaks, so a result
+marked *confirmed* is the right device and not a good guess.
 
 Press **Use this** next to yours, name it, and save.
 
@@ -101,7 +101,7 @@ Or by hand, in `config.json`:
   "platform": "EliotSmartControl",
   "desks": [
     {
-      "name": "Schreibtisch",
+      "name": "Desk",
       "mac": "E5:11:22:33:44:55",
       "ecoMode": "off"
     }

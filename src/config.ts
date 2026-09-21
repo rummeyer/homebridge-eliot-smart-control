@@ -10,8 +10,8 @@ export interface DeskConfig {
    * BLE address of the Smart Dongle, e.g. `E5:11:22:33:44:55`.
    *
    * There is no printed address on some dongles and no vendor name in the
-   * advertisement — it appears as `Schreibtisch`. `tools/eliot-probe.js scan`
-   * finds it.
+   * advertisement; the name it does carry is whatever the desk was called in
+   * the Eliot app. `tools/eliot-probe.js scan` finds it by its service UUID.
    */
   mac: string;
   /**

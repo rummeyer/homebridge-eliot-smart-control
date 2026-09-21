@@ -1,7 +1,8 @@
 /**
  * Finding a Smart Dongle, which is harder than it sounds.
  *
- * The dongle advertises as `Schreibtisch` with a random-static address, no
+ * The dongle advertises under whatever name the desk was given in the Eliot
+ * app — often none at all — with a random-static address, no
  * manufacturer data and no vendor name. There is nothing in a scan list that
  * says "Eliot", so a person looking for it by eye has to guess — which is why
  * this exists and why the settings page uses it.
@@ -18,7 +19,13 @@ import { SERVICE_SERIAL } from './link.ts';
 export interface FoundDesk {
   /** BLE address, the value that goes in the config. */
   address: string;
-  /** Advertised name, typically `Schreibtisch`. */
+  /**
+   * Advertised name, which is whatever the desk was called in the Eliot app.
+   *
+   * Not a way to find a dongle: it is set by whoever set it up, and a unit that
+   * was never named advertises nothing useful at all. The service UUID is what
+   * identifies one.
+   */
   name: string | null;
   /** Signal strength in dBm. Null for a device BlueZ knows but has not heard. */
   rssi: number | null;

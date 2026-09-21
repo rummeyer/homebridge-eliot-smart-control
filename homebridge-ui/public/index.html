@@ -27,10 +27,11 @@
   <div class="card-body">
     <h5 class="card-title">Find your desk</h5>
     <p class="card-text text-muted small mb-3">
-      The Smart Dongle does not announce itself usefully &mdash; it appears as
-      <strong>Schreibtisch</strong>, with no manufacturer name, and many units have no
-      address printed on them. This looks for the Bluetooth service the desk actually
-      speaks, so a confirmed result is the right device rather than a good guess.
+      The Smart Dongle does not announce itself usefully. It advertises under whatever
+      name the desk was given in the Eliot app, carries no manufacturer name, and many
+      units have no address printed on them. This looks for the Bluetooth service the
+      desk actually speaks, so a confirmed result is the right device rather than a good
+      guess &mdash; whatever it happens to be called.
     </p>
 
     <div class="d-flex gap-2 align-items-center">
@@ -140,9 +141,9 @@
       const blank = block.desks.find((d) => !d.mac);
       if (blank) {
         blank.mac = found.address;
-        blank.name = blank.name || found.name || 'Schreibtisch';
+        blank.name = blank.name || found.name || 'Desk';
       } else {
-        block.desks.push({ name: found.name || 'Schreibtisch', mac: found.address });
+        block.desks.push({ name: found.name || 'Desk', mac: found.address });
       }
 
       await homebridge.updatePluginConfig([block, ...config.slice(1)]);
