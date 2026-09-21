@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.3.0] — 2026-09-21
+
 ### Removed
 
 - **The memory-name setting.** The Home app renames switches perfectly well,
@@ -33,6 +35,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   can tell you: the settings page cannot reach the desk while the plugin holds
   the dongle's only connection, and what the desk reports is what it has stored
   rather than what it is running.
+- **The settings page is in English throughout.** It had drifted into half
+  German and half English, one setting at a time.
 
 ## [1.2.0] — 2026-09-21
 
@@ -257,7 +261,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.3.0...HEAD
+[1.3.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.2.0...v1.3.0
 [1.2.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.1.0...v1.2.0
 [1.1.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.0.0...v1.1.0
 [1.0.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v0.5.0...v1.0.0
