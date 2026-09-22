@@ -268,8 +268,10 @@ to `CONSTANT_TOUCH`.
 **Measured against the control box, 22.09.2026.** The desk was found holding
 `19 01`, and the handset was in hold mode — its owner noticed before this code
 did. The plugin wrote `F1 F1 19 01 00 1A 7E`, byte for byte the app's
-`MOTION_PRESS`, and the owner confirmed one-touch was back. So the mapping is
-no longer read out of the app alone: `0` is one touch on real hardware.
+`MOTION_PRESS`, and one-touch was back **at the handset** — a press sends the
+desk on its way instead of having to be held. So the mapping is no longer read
+out of the app alone: `0` is one touch on real hardware, and the setting
+reaches the buttons, not just the commands.
 
 **And it bites at once.** No reset happened between the write at 10:57:39 and
 the confirmation. That sets `MOTION_MODE` apart from `VELOCITY` and

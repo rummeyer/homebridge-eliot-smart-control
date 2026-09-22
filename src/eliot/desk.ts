@@ -987,8 +987,11 @@ export class Desk extends EventEmitter {
    * the command once, which is everything in this plugin. Offering it as a
    * choice would be offering to break the desk.
    *
-   * It leaves the handset alone either way: one touch is about what a *command*
-   * does, not about what the buttons do.
+   * It changes the handset too, which is how the desk's owner spotted it before
+   * this code did: in hold mode a button has to be held down, in one touch a
+   * press sends the desk on its way. Worth knowing because it means this write
+   * is not invisible to whoever is standing at the desk — it is the same switch
+   * the Eliot app offers them, and it will move under their hand.
    */
   async #applyMotionMode(): Promise<void> {
     if (this.#motionModeApplied) {
