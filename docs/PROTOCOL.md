@@ -237,7 +237,7 @@ step commands and could not stop it properly.
 | `GOTO_HEIGHT` | `1B` | 2 | Drive to a height, big-endian millimetres. **Verified**: 802 → 900 mm against a target of 902, landing 2 mm out, on one command |
 | `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
 | `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
-| `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026** — see below |
+| `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026, verified on hardware 22.09.2026** — see below |
 | `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
 | `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low. **Verified stored**: 2 → 3 → 2, each read back — see below |
 | `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
@@ -263,9 +263,25 @@ MOTION_HOLD:  F1 F1 19 01 01 1B 7E      hold is 1
 ```
 
 Its reader agrees, in two places: `case '19'` maps `0` to `ONE_TOUCH` and `1`
-to `CONSTANT_TOUCH`. Nothing here was measured against the control box — the
-mapping is read out of the app, like the rest of this section, and writing
-`0x19` to find out would cost a reset.
+to `CONSTANT_TOUCH`.
+
+**Measured against the control box, 22.09.2026.** The desk was found holding
+`19 01`, and the handset was in hold mode — its owner noticed before this code
+did. The plugin wrote `F1 F1 19 01 00 1A 7E`, byte for byte the app's
+`MOTION_PRESS`, and the owner confirmed one-touch was back. So the mapping is
+no longer read out of the app alone: `0` is one touch on real hardware.
+
+**And it bites at once.** No reset happened between the write at 10:57:39 and
+the confirmation. That sets `MOTION_MODE` apart from `VELOCITY` and
+`LOW_POWER`, which sit in the same settings block and stay dormant until a
+reset — so "the settings block only takes effect at a reset" is not a rule
+about the block, it is a fact about those two fields. What `SENSITIVITY` does
+is still unknown; it has not been measured either way.
+
+What is still not measured is the consequence: nobody has yet watched a single
+`GOTO_HEIGHT` carry the desk the whole way in one-touch mode. That is the
+behaviour the mode is wanted for, and it is one drag of the Home app slider
+away.
 
 The wrong version was believed because it seemed to have been confirmed: with
 `00` stored the desk moved 10 mm on a `GOTO_HEIGHT` and stopped, which looks
@@ -451,6 +467,24 @@ So:
 
 The plugin was never affected. It polls every 30 s while idle and listens
 during a move, which is the right shape by construction.
+
+### A box that has lost its zero answers everything except its height
+
+Observed 22.09.2026, with a before and an after. The control box stopped
+reporting `HEIGHT` altogether: the 30-second `SETTINGS` poll kept coming back
+with `25 26 27 28` and no `01`, the full `CONNECT` block still arrived
+complete, limits and range still answered, and **no `0x40` was ever sent**. The
+handset showed RESET. After the owner re-homed the desk, `01` came back on the
+very next poll, reading `02BC` — 700 mm, the soft minimum, which is where a
+re-homed desk lands.
+
+So a box without its zero is not quiet and not broken-looking. It is talkative
+about everything it still knows and silent about the one thing it does not, and
+`0x40` is not the way to find out — asking for a height and getting nothing is.
+
+For anything built on this, that silence is worth treating as its own state
+rather than as a dropped link: they look identical from a distance and want
+opposite responses.
 
 ### There is no reset command
 
