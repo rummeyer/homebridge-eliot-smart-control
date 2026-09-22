@@ -157,6 +157,12 @@
                   "type": "boolean",
                   "default": false,
                   "description": "Switches <b>Auto Movement</b> off again at the end of each day, so it only runs on days you turn it on. Off means the switch stays on until you turn it off."
+                },
+                "timerSlider": {
+                  "title": "Timer slider",
+                  "type": "boolean",
+                  "default": true,
+                  "description": "Adds a <b>Timer</b> slider showing how much of the interval is left before the next move. Drag it to put the move off or bring it forward; all the way down moves the desk now, without the warning. Off removes the slider."
                 }
               }
             }

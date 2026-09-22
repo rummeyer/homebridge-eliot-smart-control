@@ -395,6 +395,7 @@ test('every service is named, under both characteristics', async (t) => {
     ['Switch', 'childlock', 'Child Lock'],
     ['Switch', 'automove', 'Auto Movement'],
     ['MotionSensor', 'automove-warning', 'Desk Move Soon'],
+    ['Lightbulb', 'automove-timer', 'Timer'],
   ];
   for (const [kind, subtype, label] of expected) {
     const service = accessory.getServiceById(kind, subtype)!;
@@ -517,6 +518,7 @@ test('no auto movement accessories unless it is configured', async (t) => {
 
   assert.equal(accessory.getServiceById('Switch', 'automove'), undefined);
   assert.equal(accessory.getServiceById('MotionSensor', 'automove-warning'), undefined);
+  assert.equal(accessory.getServiceById('Lightbulb', 'automove-timer'), undefined);
 });
 
 test('a drag is one move, not one per step of the slider', async (t) => {
@@ -586,4 +588,153 @@ test('a switch for a memory the desk no longer has is taken away', async (t) => 
     3,
   );
 
+});
+
+/**
+ * Working hours that are always open, so a test can run at any hour of any day.
+ *
+ * The scheduler refuses to move outside its windows, which is right and which
+ * would otherwise make these pass or fail depending on when they were run.
+ */
+const ALWAYS = {
+  windows: ['00:00-23:59'],
+  days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
+};
+
+test('the countdown comes with a slider, wired up both ways', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: {} } });
+
+  const timer = accessory.getServiceById('Lightbulb', 'automove-timer');
+  assert.ok(timer, 'there is a Timer');
+  for (const name of ['On', 'Brightness']) {
+    const characteristic = timer.getCharacteristic(name);
+    assert.equal(typeof characteristic.handlers.get, 'function', `${name} can be read`);
+    assert.equal(typeof characteristic.handlers.set, 'function', `${name} can be written`);
+  }
+  assert.equal(
+    await timer.getCharacteristic('Brightness').handlers.get?.(),
+    0,
+    'and it reads zero, because auto movement starts off',
+  );
+});
+
+test('a slider restored from the cache is wired up again', async (t) => {
+  // Homebridge hands the service back without its handlers, and a Timer that
+  // cannot be dragged is worse than no Timer at all.
+  const accessory = new FakeAccessory();
+  accessory.addService('Lightbulb', 'Schreibtisch Timer', 'automove-timer');
+  await start(t, accessory, { desk: { autoMove: {} } });
+
+  const timers = accessory.services.filter((s) => s.kind === 'Lightbulb');
+  assert.equal(timers.length, 1, 'reused, not duplicated');
+  assert.equal(typeof timers[0].getCharacteristic('Brightness').handlers.set, 'function');
+});
+
+test('switching auto movement on fills the timer, and off empties it', async (t) => {
+  const accessory = new FakeAccessory();
+  await start(t, accessory, { desk: { autoMove: ALWAYS } });
+  const auto = accessory.getServiceById('Switch', 'automove')!.getCharacteristic('On');
+  const timer = accessory.getServiceById('Lightbulb', 'automove-timer')!;
+
+  await auto.handlers.set?.(true);
+  assert.equal(timer.getCharacteristic('Brightness').value, 100, 'a full interval to run down');
+  assert.equal(timer.getCharacteristic('On').value, true);
+
+  await auto.handlers.set?.(false);
+  assert.equal(timer.getCharacteristic('Brightness').value, 0, 'off is a timer that is not running');
+  assert.equal(timer.getCharacteristic('On').value, false);
+});
+
+test('dragging the timer to zero moves the desk, without warning about it', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { autoMove: ALWAYS } });
+  const auto = accessory.getServiceById('Switch', 'automove')!.getCharacteristic('On');
+  await auto.handlers.set?.(true);
+  const before = transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length;
+
+  // What the Home app sends when the slider goes all the way down: a brightness
+  // of zero *and* an On of false, because that is what a light does at zero.
+  const timer = accessory.getServiceById('Lightbulb', 'automove-timer')!;
+  await timer.getCharacteristic('Brightness').handlers.set?.(0);
+  await timer.getCharacteristic('On').handlers.set?.(false);
+  await tick(900);
+
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length - before,
+    1,
+    'the desk was sent somewhere',
+  );
+  assert.equal(
+    accessory
+      .getServiceById('MotionSensor', 'automove-warning')!
+      .getCharacteristic('MotionDetected').value,
+    false,
+    'and nobody was warned about a move they had just asked for',
+  );
+  assert.equal(
+    await auto.handlers.get?.(),
+    true,
+    'the light going out at zero is not auto movement being switched off',
+  );
+  assert.equal(timer.getCharacteristic('Brightness').value, 100, 'a fresh interval starts at once');
+});
+
+test('switching the timer light off switches auto movement off', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { autoMove: ALWAYS } });
+  const auto = accessory.getServiceById('Switch', 'automove')!.getCharacteristic('On');
+  await auto.handlers.set?.(true);
+  const before = transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length;
+
+  // A tap on the tile, which writes On and nothing else.
+  const timer = accessory.getServiceById('Lightbulb', 'automove-timer')!;
+  await timer.getCharacteristic('On').handlers.set?.(false);
+  await tick(900);
+
+  assert.equal(await auto.handlers.get?.(), false, 'off means off');
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length - before,
+    0,
+    'and it is not a move',
+  );
+  assert.equal(timer.getCharacteristic('Brightness').value, 0);
+});
+
+test('a drag that stops short of zero only changes the wait', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { autoMove: ALWAYS } });
+  await accessory
+    .getServiceById('Switch', 'automove')!
+    .getCharacteristic('On')
+    .handlers.set?.(true);
+  const before = transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length;
+
+  const timer = accessory.getServiceById('Lightbulb', 'automove-timer')!;
+  // A drag is dozens of writes; only where the finger left off was meant.
+  for (const percent of [92, 81, 70, 58, 50]) {
+    await timer.getCharacteristic('Brightness').handlers.set?.(percent);
+  }
+  await tick(900);
+
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.GOTO_HEIGHT).length - before,
+    0,
+    'nothing moved',
+  );
+  assert.equal(timer.getCharacteristic('Brightness').value, 50, 'and half an interval is left');
+});
+
+test('the timer slider can be turned off in the config', async (t) => {
+  const accessory = new FakeAccessory();
+  // Left over from when it was wanted, which is what a restart looks like.
+  accessory.addService('Lightbulb', 'Schreibtisch Timer', 'automove-timer');
+  await start(t, accessory, { desk: { autoMove: { timerSlider: false } } });
+
+  assert.equal(
+    accessory.getServiceById('Lightbulb', 'automove-timer'),
+    undefined,
+    'a slider nobody asked for is taken away, not left doing nothing',
+  );
+  assert.ok(accessory.getServiceById('Switch', 'automove'), 'auto movement itself stays');
 });

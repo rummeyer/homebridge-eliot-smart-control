@@ -18,9 +18,16 @@ const OPTIONS = {
 const at = (hh: number, mm = 0) => new Date(2026, 8, 21, hh, mm, 0);
 const minutes = (d: Date, n: number) => new Date(d.getTime() + n * 60_000);
 
-const running = () => {
+/**
+ * Switched on at `when`, which is also when its first interval starts.
+ *
+ * The moment matters: switching on puts a full interval on the clock there and
+ * then, so a mover switched on by the wall clock and then polled at a made-up
+ * one has a countdown thirty minutes into next year.
+ */
+const running = (when: Date = at(9)) => {
   const mover = new AutoMover(OPTIONS);
-  mover.setEnabled(true);
+  mover.setEnabled(true, when);
   return mover;
 };
 
@@ -40,10 +47,14 @@ test('nothing happens until it is switched on', () => {
 });
 
 test('a window opening starts the clock rather than moving the desk', () => {
-  const mover = running();
+  // Switched on over breakfast, an hour before the working day.
+  const mover = running(at(7));
+  assert.equal(mover.poll(at(7, 30), 800, false).kind, 'none', 'nothing outside the hours');
+  assert.equal(mover.dueAt, null, 'and no countdown to arrive at 08:00 already spent');
+
   // 08:00 sharp, before anyone has sat down.
   assert.equal(mover.poll(at(8), 800, false).kind, 'none');
-  assert.ok(mover.dueAt !== null, 'but the countdown is running');
+  assert.ok(mover.dueAt !== null, 'but the countdown is running now');
 });
 
 test('the warning comes first, then the move', () => {
@@ -115,7 +126,7 @@ test('outside the windows it stays quiet, and withdraws a warning', () => {
   assert.equal(mover.poll(at(17), 800, false).kind, 'none', 'evening');
 
   // Warned at 11:56, and then the window closes before the move is due.
-  const mover2 = running();
+  const mover2 = running(at(11, 31));
   mover2.poll(at(11, 31), 800, false);
   assert.equal(mover2.poll(at(11, 56), 800, false).kind, 'warn');
   assert.equal(
@@ -138,13 +149,13 @@ test('switching off forgets the countdown instead of pausing it', () => {
   mover.poll(start, 800, false);
   mover.poll(minutes(start, 29), 800, false);
 
-  mover.setEnabled(false);
+  mover.setEnabled(false, minutes(start, 29));
   assert.equal(mover.dueAt, null);
 
   // Back on a minute later: a full interval, not the one second that was left.
-  mover.setEnabled(true);
-  mover.poll(minutes(start, 30), 800, false);
+  mover.setEnabled(true, minutes(start, 30));
   assert.equal(mover.poll(minutes(start, 31), 800, false).kind, 'none');
+  assert.equal(mover.poll(minutes(start, 60), 800, false).kind, 'move', 'thirty minutes later');
 });
 
 test('a manual move while switched off changes nothing', () => {
@@ -159,7 +170,7 @@ test('with the daily switch-off, a new day turns it off', () => {
   assert.equal(mover.enabled, true);
 
   // Later the same day it carries on.
-  assert.equal(mover.poll(at(9, 30), 800, false).kind, 'none');
+  assert.equal(mover.poll(at(9, 20), 800, false).kind, 'none');
   assert.equal(mover.enabled, true);
 
   // Tuesday. It does not matter that this is also a working day.
@@ -195,4 +206,84 @@ test('switching off by hand forgets the day too', () => {
   mover.setEnabled(true, at(9));
   mover.setEnabled(false, at(10));
   assert.equal(mover.enabledDay, null);
+});
+
+test('the timer reads zero while off, and full the moment it is switched on', () => {
+  const mover = new AutoMover(OPTIONS);
+  assert.equal(mover.remainingPercent(at(9)), 0, 'off is not a countdown standing still');
+
+  mover.setEnabled(true, at(9));
+  assert.equal(mover.remainingPercent(at(9)), 100, 'and on is a full interval, now');
+
+  mover.setEnabled(false, at(9, 10));
+  assert.equal(mover.remainingPercent(at(9, 10)), 0, 'back to zero, not to where it stopped');
+});
+
+test('the timer runs down with the interval', () => {
+  const mover = running(at(9));
+  assert.equal(mover.remainingPercent(at(9, 15)), 50);
+  assert.equal(mover.remainingPercent(at(9, 27)), 10);
+  assert.equal(mover.remainingPercent(at(9, 30)), 0, 'due');
+  assert.equal(mover.remainingPercent(at(9, 45)), 0, 'and overdue is not a negative slider');
+});
+
+test('outside the hours the timer is full rather than counting down to nothing', () => {
+  const mover = running(at(7));
+  mover.poll(at(7, 30), 800, false);
+  assert.equal(mover.dueAt, null, 'nothing is scheduled');
+  assert.equal(mover.remainingPercent(at(7, 30)), 100, 'so it waits at full, and is not empty');
+});
+
+test('dragging the timer changes the wait and nothing else', () => {
+  const mover = running(at(9));
+  mover.poll(at(9), 800, false);
+
+  // Twenty minutes in, put back to a full interval.
+  mover.setRemainingPercent(100, at(9, 20));
+  assert.equal(mover.poll(at(9, 30), 800, false).kind, 'none', 'the old 09:30 is gone');
+  assert.equal(mover.poll(at(9, 50), 800, false).kind, 'move', 'due thirty minutes on');
+});
+
+test('a drag that lands clear of the warning still warns', () => {
+  const mover = running(at(9));
+  // Half an interval left: due 09:15, so the warning falls at 09:10.
+  mover.setRemainingPercent(50, at(9));
+  assert.equal(mover.poll(at(9, 9), 800, false).kind, 'none');
+  assert.equal(mover.poll(at(9, 10), 800, false).kind, 'warn');
+});
+
+test('a drag into the warning does not warn about what was just asked for', () => {
+  const mover = running(at(9));
+  // Just under four minutes, which is inside the five-minute warning.
+  mover.setRemainingPercent(13, at(9));
+  assert.equal(mover.poll(at(9, 1), 800, false).kind, 'none', 'no buzz a minute after the drag');
+  assert.equal(mover.poll(at(9, 4), 800, false).kind, 'move', 'it just moves, as asked');
+});
+
+test('running the timer out by hand is a move, and not a warning first', () => {
+  const mover = running(at(9));
+  mover.expire(at(9, 3));
+
+  assert.equal(mover.poll(at(9, 3), 800, false).kind, 'move', 'the next poll takes it');
+  assert.equal(mover.remainingPercent(at(9, 3)), 100, 'and the timer is full again at once');
+});
+
+test('the timer fills again after a move and after a handset nudge', () => {
+  const mover = running(at(9));
+  assert.equal(mover.poll(at(9, 30), 800, false).kind, 'move');
+  assert.equal(mover.remainingPercent(at(9, 30)), 100);
+
+  mover.noteManualMove(at(9, 40).getTime());
+  assert.equal(mover.remainingPercent(at(9, 40)), 100, 'a nudge is a fresh interval too');
+});
+
+test('the timer cannot be dragged while auto movement is off', () => {
+  const mover = new AutoMover(OPTIONS);
+
+  mover.setRemainingPercent(100, at(9));
+  assert.equal(mover.dueAt, null, 'there is no countdown to set');
+  assert.equal(mover.remainingPercent(at(9)), 0);
+
+  mover.expire(at(9));
+  assert.equal(mover.dueAt, null, 'and none to run out');
 });

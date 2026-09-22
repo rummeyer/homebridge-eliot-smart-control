@@ -130,6 +130,18 @@ handset and you have bought another interval. It is also simply true — the
 timer measures time spent at a height, and that clock restarts when the height
 does.
 
+**The countdown is on show, as a slider.** Auto movement brings a **Timer**
+with it — a light whose brightness is how much of the interval is left before
+the next move. It fills to 100% when you switch auto movement on and runs down
+from there; a handset nudge or a move fills it again.
+
+Dragging it is how you change the wait, and nothing else about it: halfway
+means half an interval left, all the way up buys a fresh one. **All the way
+down moves the desk now**, and skips the warning — you just asked for the move,
+so being told it is coming would be late. With auto movement off the slider
+sits at 0 and stays there, because there is no countdown to show. Set
+`timerSlider` to `false` if you would rather not have it.
+
 **Getting told about it takes one step you have to do yourself.** HomeKit gives
 a plugin no way to send a notification, so the warning is a motion sensor
 called **Desk Move Soon**. Open it in the Home app, and under *Status and

@@ -111,6 +111,15 @@ export interface AutoMoveConfig {
    * behaviour it has: once on, on until switched off.
    */
   switchOffDaily?: boolean;
+  /**
+   * Show the countdown as a slider in the Home app.
+   *
+   * A <b>Timer</b> light whose brightness is how much of the interval is left,
+   * which is also how it is set: drag it and the next move comes sooner or
+   * later. On by default — the timer was running either way, and a countdown
+   * nobody can see is a desk that moves without warning.
+   */
+  timerSlider?: boolean;
 }
 
 export const DEFAULT_AUTO_MOVE = {
@@ -121,6 +130,7 @@ export const DEFAULT_AUTO_MOVE = {
   windows: ['08:00-12:00', '13:00-16:00'],
   days: ['mon', 'tue', 'wed', 'thu', 'fri'] as DayName[],
   switchOffDaily: false,
+  timerSlider: true,
 };
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -232,6 +242,9 @@ export function validateAutoMove(auto: AutoMoveConfig | undefined, where: string
 
   if (auto.switchOffDaily !== undefined && typeof auto.switchOffDaily !== 'boolean') {
     problems.push(`${at}.switchOffDaily must be true or false`);
+  }
+  if (auto.timerSlider !== undefined && typeof auto.timerSlider !== 'boolean') {
+    problems.push(`${at}.timerSlider must be true or false`);
   }
 
   if (auto.days !== undefined) {

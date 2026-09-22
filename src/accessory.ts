@@ -96,6 +96,13 @@ export class EliotAccessory {
   /** Auto-movement, when it is configured at all. */
   #autoService: Service | undefined;
   #warnService: Service | undefined;
+  /** The countdown as a slider, when it is wanted. */
+  #timerService: Service | undefined;
+  /** The writes one slider gesture produces, and the timer waiting for the rest. */
+  #timerGesture: { on?: boolean; brightness?: number } = {};
+  #timerSettle: NodeJS.Timeout | undefined;
+  /** The percentage last shown, so a tick that changes nothing stays quiet. */
+  #timerShown: number | null = null;
   #mover: AutoMover | undefined;
   #autoTimer: NodeJS.Timeout | undefined;
   /** Heights already complained about, so the log says it once and not hourly. */
@@ -282,6 +289,28 @@ export class EliotAccessory {
       this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
     }
 
+    const timerSubtype = 'automove-timer';
+    const restoredTimer = this.#accessory.getServiceById(HapService.Lightbulb, timerSubtype);
+    if (!auto.timerSlider) {
+      if (restoredTimer) {
+        this.#accessory.removeService(restoredTimer);
+      }
+      this.#timerService = undefined;
+    } else {
+      this.#timerService =
+        restoredTimer ?? this.#accessory.addService(HapService.Lightbulb, 'Timer', timerSubtype);
+      this.#name(this.#timerService, 'Timer');
+      this.#timerService
+        .getCharacteristic(Characteristic.On)
+        .onGet(() => this.#mover?.enabled ?? false)
+        .onSet((value) => this.#takeTimerWrite({ on: Boolean(value) }));
+      this.#timerService
+        .getCharacteristic(Characteristic.Brightness)
+        .onGet(() => this.#mover?.remainingPercent() ?? 0)
+        .onSet((value) => this.#takeTimerWrite({ brightness: Math.round(Number(value)) }));
+      this.#publishTimer(true);
+    }
+
     // A handset move is the snooze, and the only sign of a person this plugin
     // gets. It restarts the interval wherever the countdown had got to.
     this.#desk.on('external-move', () => {
@@ -290,6 +319,7 @@ export class EliotAccessory {
       }
       this.#mover.noteManualMove(Date.now());
       this.#warn(false);
+      this.#publishTimer();
       this.#platform.log.debug(`${this.#config.name}: moved by hand, auto-move timer restarted`);
     });
 
@@ -303,6 +333,10 @@ export class EliotAccessory {
     if (!on) {
       this.#warn(false);
     }
+    // On is a full interval to run down, off is a timer that is not running.
+    // Either way the slider has to follow, or it shows a countdown for an
+    // automation that is not happening.
+    this.#publishTimer(true);
     this.#platform.log.info(`${this.#config.name}: auto movement ${on ? 'on' : 'off'}`);
   }
 
@@ -325,12 +359,140 @@ export class EliotAccessory {
     this.#warnService?.setCharacteristic(Characteristic.MotionDetected, active);
   }
 
-  /** Ask the scheduler what it wants, and do it. */
-  async #autoTick(): Promise<void> {
+  /** Show where the countdown stands, without waking HomeKit for no change. */
+  #publishTimer(force = false): void {
+    const service = this.#timerService;
+    const mover = this.#mover;
+    if (!service || !mover) {
+      return;
+    }
+    const percent = mover.remainingPercent();
+    if (!force && percent === this.#timerShown) {
+      return;
+    }
+    this.#timerShown = percent;
+    const { Characteristic } = this.#platform.api.hap;
+    service.updateCharacteristic(Characteristic.On, mover.enabled);
+    service.updateCharacteristic(Characteristic.Brightness, percent);
+  }
+
+  /**
+   * Collect the writes one gesture produces, and decide once.
+   *
+   * A Lightbulb has to have an `On`, and the Home app spends it: dragging the
+   * slider to the bottom writes `Brightness` 0 *and* `On` false, because that is
+   * what a light does at zero. Read separately those are two different
+   * instructions — "run the timer out" and "switch auto movement off" — and
+   * whichever landed last would win, which would make dragging to zero a coin
+   * toss between moving the desk and stopping the automation. Read together, as
+   * the one gesture they came from, they are the one thing somebody did.
+   *
+   * The same settle the position slider uses, for the same reason: a drag is
+   * dozens of these and only the end of it was ever meant.
+   */
+  #takeTimerWrite(part: { on?: boolean; brightness?: number }): void {
+    Object.assign(this.#timerGesture, part);
+
+    if (this.#timerSettle) {
+      clearTimeout(this.#timerSettle);
+    }
+    this.#timerSettle = setTimeout(() => {
+      this.#timerSettle = undefined;
+      const gesture = this.#timerGesture;
+      this.#timerGesture = {};
+      this.#applyTimerWrite(gesture);
+    }, TARGET_SETTLE_MS);
+    this.#timerSettle.unref();
+  }
+
+  /**
+   * What that gesture meant.
+   *
+   * A brightness is about the countdown, so it settles the question of whether
+   * auto movement is on: it is, or there would be no countdown to drag. Only a
+   * gesture that is nothing *but* `On` is the switch being used as a switch.
+   */
+  #applyTimerWrite({ on, brightness }: { on?: boolean; brightness?: number }): void {
     const mover = this.#mover;
     if (!mover) {
       return;
     }
+
+    if (brightness === undefined) {
+      if (on !== undefined && on !== mover.enabled) {
+        this.#setAutoMove(on);
+      }
+      return;
+    }
+
+    const wasEnabled = mover.enabled;
+    if (!wasEnabled) {
+      // Dragged up from a standstill. That is a switch-on, and is remembered as
+      // one — #setAutoMove also puts a full interval on the clock.
+      this.#setAutoMove(true);
+    }
+
+    if (brightness === 0) {
+      if (!wasEnabled) {
+        // Switched on while the slider sat at zero, because zero is what off
+        // looks like. It is where this came from, not something asked for, and
+        // reading it as "move now" would turn switching the automation on into
+        // a desk that moves under somebody's coffee.
+        this.#publishTimer(true);
+        return;
+      }
+      const state = this.#desk.state;
+      if (!state.connected || !state.ready) {
+        // There is nothing to run the timer out into. Expiring anyway would
+        // leave the countdown sitting at zero with auto movement still on, and
+        // zero is what the slider shows when it is off — the one reading it
+        // must never give while it is running. So the drag is refused and the
+        // slider goes back to where the countdown actually is.
+        this.#platform.log.warn(
+          `${this.#config.name}: the timer was run out by hand, but the desk is not reachable`,
+        );
+        this.#publishTimer(true);
+        return;
+      }
+
+      // Run out by hand. The warning is withdrawn rather than raised: it
+      // announces a move that is coming, and this one is already here.
+      this.#platform.log.info(`${this.#config.name}: timer run out by hand`);
+      mover.expire();
+      this.#warn(false);
+      void this.#autoTick();
+      return;
+    }
+
+    mover.setRemainingPercent(brightness);
+    this.#platform.log.debug(
+      `${this.#config.name}: timer set to ${brightness}% of the interval`,
+    );
+    this.#publishTimer(true);
+  }
+
+  /**
+   * The half-minute tick: decide, then show where the countdown stands.
+   *
+   * The redraw is in a `finally` because {@link #decide} leaves by a dozen
+   * doors — nothing due, outside the hours, a new day, a move — and the slider
+   * has to be right after all of them. It is also the ordinary redraw, which is
+   * what makes the timer visibly run down rather than jump when something
+   * happens to touch it.
+   */
+  async #autoTick(): Promise<void> {
+    if (!this.#mover) {
+      return;
+    }
+    try {
+      await this.#decide(this.#mover);
+    } finally {
+      this.#publishTimer();
+    }
+  }
+
+  /** Ask the scheduler what it wants, and do it. */
+  async #decide(mover: AutoMover): Promise<void> {
     const state = this.#desk.state;
     if (!state.connected || !state.ready) {
       return;
@@ -403,6 +565,10 @@ export class EliotAccessory {
     if (this.#targetTimer) {
       clearTimeout(this.#targetTimer);
       this.#targetTimer = undefined;
+    }
+    if (this.#timerSettle) {
+      clearTimeout(this.#timerSettle);
+      this.#timerSettle = undefined;
     }
     if (this.#autoTimer) {
       clearInterval(this.#autoTimer);

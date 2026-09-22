@@ -118,18 +118,22 @@ export class AutoMover {
   /**
    * Turn the whole thing on or off.
    *
-   * Switching on does not start a countdown; the next poll does that, and only
-   * if the moment is one where moving would be right. Switching off forgets the
-   * countdown rather than pausing it — coming back to a desk that moves the
-   * instant it is re-enabled is not what the switch appears to promise.
+   * Switching on starts a full interval. Switching off forgets the countdown
+   * rather than pausing it — coming back to a desk that moves the instant it is
+   * re-enabled is not what the switch appears to promise, and it is why the
+   * timer reads 0 while this is off rather than holding where it stopped.
    */
   setEnabled(on: boolean, now: Date = new Date()): void {
     this.#enabled = on;
     this.#enabledDay = on ? dayKey(now) : null;
-    if (!on) {
-      this.#dueAt = null;
-      this.#warned = false;
-    }
+    this.#warned = false;
+    // Switching on starts the countdown at its full length here rather than
+    // leaving it to the next poll. The poll would get there within half a
+    // minute either way, and until the timer was on show that was invisible —
+    // a slider that reads empty for the first thirty seconds after switching
+    // on reads as broken. Outside a window the poll still clears it, so this
+    // does not bring back a desk that moves at 08:00 sharp.
+    this.#dueAt = on ? now.getTime() + this.#opts.intervalMinutes * MINUTE : null;
   }
 
   /** The day it was switched on for, so a restart can carry it across. */
@@ -146,6 +150,69 @@ export class AutoMover {
   /** When the next move is due, for the log and for tests. */
   get dueAt(): number | null {
     return this.#dueAt;
+  }
+
+  /**
+   * How much of the interval is left, as the timer slider shows it.
+   *
+   * 0 when auto movement is off. The slider *is* the countdown, and there is no
+   * countdown — showing a remainder for a timer that is not running would be
+   * showing a number that means nothing.
+   *
+   * 100 when it is on but nothing is scheduled, which is what being outside the
+   * working hours looks like: full, and waiting for a window rather than running
+   * down towards one.
+   */
+  remainingPercent(now: Date = new Date()): number {
+    if (!this.#enabled) {
+      return 0;
+    }
+    if (this.#dueAt === null) {
+      return 100;
+    }
+    const left = this.#dueAt - now.getTime();
+    const full = this.#opts.intervalMinutes * MINUTE;
+    return Math.min(Math.max(Math.round((left / full) * 100), 0), 100);
+  }
+
+  /**
+   * Move the countdown to a point, as a percentage of a full interval.
+   *
+   * This is somebody dragging the timer slider: 100 is a fresh interval, 50 is
+   * half of one left. It changes the wait and nothing else — not where the desk
+   * is headed, not whether auto movement is on.
+   *
+   * Whether the warning still fires depends on where the drag landed. Setting
+   * the timer below the warning is already the decision the warning exists to
+   * announce, and a phone that buzzes "moving in 4 minutes" the instant somebody
+   * asked for four more minutes is noise. Land above it and the warning comes as
+   * it always did, at the usual distance from the move.
+   */
+  setRemainingPercent(percent: number, now: Date = new Date()): void {
+    if (!this.#enabled) {
+      return;
+    }
+    const clamped = Math.min(Math.max(percent, 0), 100);
+    const left = (clamped / 100) * this.#opts.intervalMinutes * MINUTE;
+    this.#dueAt = now.getTime() + left;
+    this.#warned = left <= this.#opts.warnMinutes * MINUTE;
+  }
+
+  /**
+   * Treat the countdown as run out, now.
+   *
+   * The next poll then returns a move, through the same path a move that came
+   * due on its own takes — the height it picks and the limits it respects are
+   * not this method's business. No warning goes with it: a warning announces a
+   * move that is coming, and this one is already here because somebody asked
+   * for it.
+   */
+  expire(now: Date = new Date()): void {
+    if (!this.#enabled) {
+      return;
+    }
+    this.#dueAt = now.getTime();
+    this.#warned = true;
   }
 
   /**

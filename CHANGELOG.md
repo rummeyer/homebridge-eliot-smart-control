@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **The auto-movement countdown is visible, and adjustable, as a `Timer`
+  slider.** A light whose brightness is how much of the interval is left before
+  the next move. Dragging it changes the wait and nothing else: all the way up
+  is a fresh interval, all the way down runs the timer out, which moves the desk
+  at once and without the warning — nobody needs telling about a move they just
+  asked for. Off it reads 0, because a timer that is not running has no
+  remainder to show. `timerSlider: false` leaves it out.
+
 ## [1.6.3] — 2026-09-21
 
 ### Changed
