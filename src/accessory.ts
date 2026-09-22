@@ -283,6 +283,35 @@ export class EliotAccessory {
         : null,
     );
 
+    // Built before the switch and the sensor, because services are created in
+    // the order they should be read: the desk, its lock, how long until it
+    // moves, whether it moves at all, and the warning that goes with that.
+    // HomeKit has no field for ordering and the Home app decides its own
+    // layout, so this is a preference expressed rather than one enforced — and
+    // it reaches an accessory restored from Homebridge's cache not at all,
+    // since those services come back in the order they were first written.
+    const timerSubtype = 'automove-timer';
+    const restoredTimer = this.#accessory.getServiceById(HapService.Lightbulb, timerSubtype);
+    if (!auto.timerSlider) {
+      if (restoredTimer) {
+        this.#accessory.removeService(restoredTimer);
+      }
+      this.#timerService = undefined;
+    } else {
+      this.#timerService =
+        restoredTimer ?? this.#accessory.addService(HapService.Lightbulb, 'Timer', timerSubtype);
+      this.#name(this.#timerService, 'Timer');
+      this.#timerService
+        .getCharacteristic(Characteristic.On)
+        .onGet(() => this.#mover?.enabled ?? false)
+        .onSet((value) => this.#takeTimerWrite({ on: Boolean(value) }));
+      this.#timerService
+        .getCharacteristic(Characteristic.Brightness)
+        .onGet(() => this.#mover?.remainingPercent() ?? 0)
+        .onSet((value) => this.#takeTimerWrite({ brightness: Math.round(Number(value)) }));
+      this.#publishTimer(true);
+    }
+
     const switchSubtype = 'automove';
     this.#autoService =
       this.#accessory.getServiceById(HapService.Switch, switchSubtype) ??
@@ -309,28 +338,6 @@ export class EliotAccessory {
         this.#accessory.addService(HapService.MotionSensor, 'Desk Move Soon', sensorSubtype);
       this.#name(this.#warnService, 'Desk Move Soon');
       this.#warnService.setCharacteristic(Characteristic.MotionDetected, false);
-    }
-
-    const timerSubtype = 'automove-timer';
-    const restoredTimer = this.#accessory.getServiceById(HapService.Lightbulb, timerSubtype);
-    if (!auto.timerSlider) {
-      if (restoredTimer) {
-        this.#accessory.removeService(restoredTimer);
-      }
-      this.#timerService = undefined;
-    } else {
-      this.#timerService =
-        restoredTimer ?? this.#accessory.addService(HapService.Lightbulb, 'Timer', timerSubtype);
-      this.#name(this.#timerService, 'Timer');
-      this.#timerService
-        .getCharacteristic(Characteristic.On)
-        .onGet(() => this.#mover?.enabled ?? false)
-        .onSet((value) => this.#takeTimerWrite({ on: Boolean(value) }));
-      this.#timerService
-        .getCharacteristic(Characteristic.Brightness)
-        .onGet(() => this.#mover?.remainingPercent() ?? 0)
-        .onSet((value) => this.#takeTimerWrite({ brightness: Math.round(Number(value)) }));
-      this.#publishTimer(true);
     }
 
     // A handset move is the snooze, and the only sign of a person this plugin
