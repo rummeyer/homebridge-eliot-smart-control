@@ -33,6 +33,8 @@ const frame = (command: number, params: number[]): Frame => ({
 class FakeTransport extends EventEmitter implements Transport {
   connected = true;
   sent: number[] = [];
+  /** The parameters of the last send of each command, for the writes that carry one. */
+  sentParams = new Map<number, number[]>();
   locked = false;
   firmware = 0x0a;
   reportsVersion = true;
@@ -40,9 +42,14 @@ class FakeTransport extends EventEmitter implements Transport {
   velocity = 21;
   lowPower = 1;
   motionMode = 0x00;
+  /** What the box holds for anti-collision: 1 high, 2 medium, 3 low. */
+  sensitivity = 2;
 
   async send(command: number, params?: Buffer | number[]): Promise<void> {
     this.sent.push(command);
+    if (params) {
+      this.sentParams.set(command, [...params]);
+    }
     if (command === Cmd.SETTINGS) {
       this.emit('frame', frame(Report.HEIGHT, [...be(880), 0x07]));
       this.emit('frame', frame(Report.POSITION_1, be(801)));
@@ -70,6 +77,7 @@ class FakeTransport extends EventEmitter implements Transport {
       this.emit('frame', frame(Report.MOTION_MODE, [this.motionMode]));
       this.emit('frame', frame(Report.VELOCITY, [this.velocity]));
       this.emit('frame', frame(Report.LOW_POWER, [this.lowPower]));
+      this.emit('frame', frame(Report.SENSITIVITY, [this.sensitivity]));
     }
   }
 
@@ -737,4 +745,82 @@ test('the timer slider can be turned off in the config', async (t) => {
     'a slider nobody asked for is taken away, not left doing nothing',
   );
   assert.ok(accessory.getServiceById('Switch', 'automove'), 'auto movement itself stays');
+});
+
+test('an unconfigured collision sensitivity leaves the desk alone', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+
+  assert.ok(
+    !transport.sent.includes(Cmd.SENSITIVITY),
+    'the box keeps whatever obstruction setting it came with',
+  );
+});
+
+test('"leave" writes no sensitivity either, which is the point of having it', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { collisionSensitivity: 'leave' } });
+
+  assert.ok(!transport.sent.includes(Cmd.SENSITIVITY));
+});
+
+test('a collision sensitivity that differs is stored on the desk', async (t) => {
+  const accessory = new FakeAccessory();
+  // The box is holding medium; the config asks for low.
+  const { transport } = await start(t, accessory, { desk: { collisionSensitivity: 'low' } });
+  transport.sensitivity = 2;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(transport.sent.includes(Cmd.SENSITIVITY), 'the new setting was written');
+});
+
+test('a desk already holding the configured sensitivity is not written to', async (t) => {
+  const accessory = new FakeAccessory();
+  const transport = new FakeTransport();
+  // Medium is exactly what the config asks for.
+  transport.sensitivity = 2;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(
+    platform as any,
+    accessory as any,
+    { ...config, collisionSensitivity: 'medium' } as any,
+    transport,
+  );
+  t.after(() => handle.stop());
+  await handle.start();
+  // Long enough for the settings block to have arrived — a shorter wait would
+  // pass whether or not the plugin had ever seen what the box is holding.
+  await tick(1600);
+
+  assert.ok(
+    !transport.sent.includes(Cmd.SENSITIVITY),
+    'a write that changes nothing still reads in the log like something happened',
+  );
+});
+
+test('the three words map onto the numbers the box uses', async (t) => {
+  // High is 1 and low is 3, which runs the opposite way to how it reads.
+  for (const [word, holding] of [
+    ['high', 3],
+    ['medium', 1],
+    ['low', 1],
+  ] as const) {
+    const accessory = new FakeAccessory();
+    const transport = new FakeTransport();
+    transport.sensitivity = holding;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const handle = new EliotAccessory(
+      platform as any,
+      accessory as any,
+      { ...config, collisionSensitivity: word } as any,
+      transport,
+    );
+    t.after(() => handle.stop());
+    await handle.start();
+    await tick(1600);
+
+    const params = transport.sentParams.get(Cmd.SENSITIVITY);
+    assert.deepEqual(params, [{ high: 1, medium: 2, low: 3 }[word]], `${word} is written`);
+  }
 });

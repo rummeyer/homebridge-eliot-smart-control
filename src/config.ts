@@ -69,6 +69,15 @@ export interface DeskConfig {
    */
   ecoMode?: 'leave' | 'on' | 'off' | boolean;
   /**
+   * The control box's own anti-collision sensitivity. Left alone unless set.
+   *
+   * Not the plugin's stall detection — this is the box deciding for itself
+   * that something is in the way and stopping. On `high` a pair of forearms
+   * resting on the desk is enough, which ends an automatic move a centimetre
+   * in and reports it as stalled.
+   */
+  collisionSensitivity?: 'leave' | 'high' | 'medium' | 'low';
+  /**
    * Move the desk between sitting and standing on a timer. Off unless set.
    *
    * Present only as an accessory until it is switched on in the Home app: the
@@ -168,6 +177,14 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
     !['leave', 'on', 'off'].includes(desk.ecoMode)
   ) {
     problems.push(`${where}.ecoMode must be "leave", "on" or "off"`);
+  }
+  if (
+    desk.collisionSensitivity !== undefined &&
+    !['leave', 'high', 'medium', 'low'].includes(desk.collisionSensitivity)
+  ) {
+    problems.push(
+      `${where}.collisionSensitivity must be "leave", "high", "medium" or "low"`,
+    );
   }
   return problems;
 }

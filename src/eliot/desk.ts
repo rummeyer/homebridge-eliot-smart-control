@@ -168,6 +168,16 @@ export interface DeskOptions {
    * next reset, which may be weeks away and nowhere near this decision.
    */
   eco?: boolean;
+  /**
+   * Anti-collision sensitivity to store on the desk: `1` high, `2` medium,
+   * `3` low. `undefined` leaves the desk's own setting alone.
+   *
+   * This is the control box's own obstruction detection, not ours. It is what
+   * stops the desk when something is in the way — including a pair of forearms
+   * resting on it, which on a high setting is enough to end a move nine
+   * millimetres in.
+   */
+  sensitivity?: number;
 }
 
 /**
@@ -277,6 +287,8 @@ export class Desk extends EventEmitter {
   #refreshed = false;
   /** Whether the configured eco pair has been dealt with on this connection. */
   #ecoApplied = false;
+  /** Whether the configured sensitivity has been dealt with on this connection. */
+  #sensitivityApplied = false;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -844,6 +856,7 @@ export class Desk extends EventEmitter {
       this.#emitChange();
     }
     void this.#applyEco();
+    void this.#applySensitivity();
   }
 
   /**
@@ -905,6 +918,52 @@ export class Desk extends EventEmitter {
     );
   }
 
+  /**
+   * Store the configured anti-collision sensitivity, if it differs.
+   *
+   * Runs once per connection and only on a difference, for the same reason as
+   * {@link #applyEco}: a write that changes nothing still reads in the log like
+   * something happened.
+   *
+   * What is established about `SENSITIVITY` (`0x1D`) is the round trip — the
+   * box reports what it holds, takes a new value and reports that one back,
+   * measured on this hardware on 22.09.2026 going 2 → 3 → 2. What is *not*
+   * established is when it starts to bite. Eco mode and travel speed are
+   * stored and only come into force at a reset, and this field sits in the
+   * same block, so it may well behave the same way — but nobody has driven the
+   * desk into an obstruction at two settings to find out, and until somebody
+   * has, saying either way would be inventing a measurement. The log says what
+   * was done, not what it will do.
+   */
+  async #applySensitivity(): Promise<void> {
+    if (this.#sensitivityApplied) {
+      return;
+    }
+    const { sensitivity } = this.#settings;
+    if (sensitivity === null) {
+      return;
+    }
+    this.#sensitivityApplied = true;
+
+    const name = (value: number): string =>
+      ({ 1: 'high', 2: 'medium', 3: 'low' })[value] ?? String(value);
+
+    this.#log.info(`the desk stores anti-collision sensitivity ${name(sensitivity)}`);
+
+    const want = this.#opts.sensitivity;
+    if (want === undefined || want === sensitivity || !this.#transport.connected) {
+      return;
+    }
+
+    await this.#transport.send(Cmd.SENSITIVITY, [want]);
+
+    this.#log.warn(
+      `anti-collision sensitivity ${name(want)} stored on the desk (it had ` +
+        `${name(sensitivity)}). Whether that takes effect now or at the next reset ` +
+        'has not been measured.',
+    );
+  }
+
   #onHeight(heightMm: number): void {
     this.#heightMm = heightMm;
 
@@ -963,6 +1022,7 @@ export class Desk extends EventEmitter {
     // trustworthy until it has been asked again.
     this.#refreshed = false;
     this.#ecoApplied = false;
+    this.#sensitivityApplied = false;
     this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');

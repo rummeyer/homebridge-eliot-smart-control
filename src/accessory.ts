@@ -79,6 +79,27 @@ function wantsEco(setting: DeskConfig['ecoMode']): boolean | undefined {
   return undefined;
 }
 
+/**
+ * The configured anti-collision sensitivity as the box numbers it, or
+ * undefined for "leave it alone".
+ *
+ * `1` high, `2` medium, `3` low — the box's own scale, which runs the opposite
+ * way to how the words read, so it is spelled out here once rather than
+ * remembered at the call site.
+ */
+function wantsSensitivity(setting: DeskConfig['collisionSensitivity']): number | undefined {
+  switch (setting) {
+    case 'high':
+      return 1;
+    case 'medium':
+      return 2;
+    case 'low':
+      return 3;
+    default:
+      return undefined;
+  }
+}
+
 export class EliotAccessory {
   readonly #platform: EliotPlatform;
   readonly #accessory: PlatformAccessory;
@@ -133,6 +154,7 @@ export class EliotAccessory {
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
       eco: wantsEco(config.ecoMode),
+      sensitivity: wantsSensitivity(config.collisionSensitivity),
     });
 
     accessory

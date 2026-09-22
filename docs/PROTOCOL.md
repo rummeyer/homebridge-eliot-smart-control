@@ -239,7 +239,7 @@ step commands and could not stop it properly.
 | `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
 | `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026** — see below |
 | `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
-| `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low |
+| `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low. **Verified stored**: 2 → 3 → 2, each read back — see below |
 | `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
 | `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
 | `PUT_LIMIT_MIN` | `22` | 2 | Set the soft minimum to a height |
@@ -388,6 +388,40 @@ dongle's single connection every two seconds. The symptoms are a control box
 that answers queries, accepts every command, moves nothing, and streams `04`
 where the height report belongs — which looks exactly like a desk that has lost
 its calibration, and is not one.
+
+### `SENSITIVITY` is the box's own brake, and it takes a write
+
+`1D` is the control box's anti-collision threshold: `1` high, `2` medium, `3`
+low. It is the box deciding by itself that something is in the way, and it is a
+different thing from the stall check in this plugin, which only notices
+*afterwards* that the desk has stopped.
+
+**How high a setting feels.** On 22.09.2026 the desk's owner rested their arms
+lightly on the desk during an automatic move. The box stopped after nine
+millimetres — `801 → 810 mm` — and the plugin reported `stalled` 1.5 s later.
+The trace shows one command going out, the `GOTO_HEIGHT` itself, and no poll
+during the move, so nothing in the plugin ended it. The box did.
+
+**Verified stored, on this hardware, 22.09.2026.** With the plugin disabled so
+the dongle was free:
+
+```
+    read   1D 01 02      medium, what the box was holding
+    write  1D 01 03      low
+    read   1D 01 03      taken
+    write  1D 01 02      back to medium
+    read   1D 01 02      taken
+```
+
+The round trip works in both directions and the box reports the new value
+immediately.
+
+**When it starts to bite is not known.** `VELOCITY` and `LOW_POWER` sit in the
+same block and are stored without coming into force until a reset, so this one
+may well behave the same way. Nobody has driven the desk into an obstruction at
+two settings to find out, and the owner explicitly asked for the write to be
+verified without testing its effect. Until somebody measures it, neither answer
+belongs in this file.
 
 ### When the box streams its height, and when a poll cancels the move
 

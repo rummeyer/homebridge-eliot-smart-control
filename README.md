@@ -158,6 +158,26 @@ wrong for one that is not: a week away, and it has been cycling an empty room
 for five days. The day is remembered rather than timed, so a restart at 23:59
 does not hand it a fresh one.
 
+## When the desk stops by itself
+
+The control box has its own anti-collision detection, and on a sensitive
+setting it does not take much: arms resting on the desk can be enough to end a
+move a centimetre in. The plugin then reports the move as `stalled`, which is
+accurate — the desk did stop — but says nothing about why, because from the
+outside a desk stopped by an obstruction and a desk stopped for any other
+reason look identical.
+
+`collisionSensitivity` sets that threshold: `high`, `medium`, `low`, or `leave`
+to keep whatever the desk came with, which is the default. It is written to the
+control box when it differs from what the box is holding, once per connection.
+
+Two things to know before you use it. The setting belongs to the desk, not to
+this plugin, so it stays changed until something changes it back. And while the
+write itself is verified — the box takes the value and reports it back — **when
+it starts to bite has not been measured**: travel speed and eco mode live in
+the same settings block and only take effect when the desk is reset, so this
+may too. If you change it and nothing seems different, reset the desk.
+
 ## Things worth knowing
 
 **Positions land exactly.** The desk is handed a height and drives there on its
