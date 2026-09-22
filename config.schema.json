@@ -109,7 +109,7 @@
                   ]
                 }
               ],
-              "description": "The control box's own obstruction detection, not this plugin's. On <b>high</b>, resting your arms on the desk is enough to stop a move a centimetre in and have it reported as stalled.<br><br><b>Reset the desk after changing this</b> — run it to the bottom and hold the down key until it re-homes. Eco mode and travel speed share this settings block and only come into force at a reset; whether this one does too has not been measured, so if nothing changes, that is the thing to try."
+              "description": "The control box's own obstruction detection, not this plugin's. On <b>high</b>, resting your arms on the desk can be enough to stop a move.<br><br><b>Takes effect only after the desk is reset by hand</b> — run it to the bottom and hold the down key until it re-homes. Until then it keeps its old setting, whatever this says."
             },
             "autoMove": {
               "type": "object",

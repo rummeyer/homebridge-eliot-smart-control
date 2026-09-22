@@ -171,12 +171,11 @@ reason look identical.
 to keep whatever the desk came with, which is the default. It is written to the
 control box when it differs from what the box is holding, once per connection.
 
-Two things to know before you use it. The setting belongs to the desk, not to
-this plugin, so it stays changed until something changes it back. And while the
-write itself is verified — the box takes the value and reports it back — **when
-it starts to bite has not been measured**: travel speed and eco mode live in
-the same settings block and only take effect when the desk is reset, so this
-may too. If you change it and nothing seems different, reset the desk.
+**It takes effect after the desk is reset by hand** — run it to the bottom and
+hold the down key until it re-homes. Until then the desk keeps its old setting,
+the same way travel speed and eco mode do. And the setting belongs to the desk
+rather than to this plugin, so it stays changed until something changes it
+back.
 
 ## Things worth knowing
 
