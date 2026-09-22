@@ -824,3 +824,31 @@ test('the three words map onto the numbers the box uses', async (t) => {
     assert.deepEqual(params, [{ high: 1, medium: 2, low: 3 }[word]], `${word} is written`);
   }
 });
+
+test('a desk found in hold mode is put back into one touch', async (t) => {
+  const accessory = new FakeAccessory();
+  const transport = new FakeTransport();
+  // Hold mode, where a single GOTO_HEIGHT only nudges the desk.
+  transport.motionMode = 0x01;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(platform as any, accessory as any, config as any, transport);
+  t.after(() => handle.stop());
+  await handle.start();
+  await tick(1600);
+
+  assert.deepEqual(
+    transport.sentParams.get(Cmd.MOTION_MODE),
+    [0],
+    'one touch is 0 — the way round the app has it, and the opposite of the old table',
+  );
+});
+
+test('a desk already in one touch is left alone', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+
+  assert.ok(
+    !transport.sent.includes(Cmd.MOTION_MODE),
+    'nothing to fix, so nothing is written',
+  );
+});

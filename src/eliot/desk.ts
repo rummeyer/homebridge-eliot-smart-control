@@ -190,6 +190,16 @@ export interface DeskOptions {
 const CANCEL_SETTLE_MS = 400;
 
 /**
+ * One touch is `0` and hold is `1`.
+ *
+ * The way round the Eliot app's own command table has it — `MOTION_PRESS` is
+ * `F1 F1 19 01 00 1A 7E` — and the opposite of what this file believed until
+ * 21.09.2026. Named rather than written as a literal because getting it
+ * backwards is a mistake that has already been made here once.
+ */
+const MOTION_ONE_TOUCH = 0;
+
+/**
  * The travel speeds that go with eco on and eco off.
  *
  * 40 is the fastest the app offers. 20 is below the 28 it offers at the slow
@@ -289,6 +299,8 @@ export class Desk extends EventEmitter {
   #ecoApplied = false;
   /** Whether the configured sensitivity has been dealt with on this connection. */
   #sensitivityApplied = false;
+  /** Whether one-touch mode has been checked on this connection. */
+  #motionModeApplied = false;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -857,6 +869,7 @@ export class Desk extends EventEmitter {
     }
     void this.#applyEco();
     void this.#applySensitivity();
+    void this.#applyMotionMode();
   }
 
   /**
@@ -964,6 +977,45 @@ export class Desk extends EventEmitter {
     );
   }
 
+  /**
+   * Put the desk into one-touch mode, always.
+   *
+   * The one setting here with nothing to configure, because it is not a
+   * preference. In hold mode the control box treats `GOTO_HEIGHT` as a nudge
+   * and waits to be asked again — the Eliot app repeats it on an interval — so
+   * a desk left in hold mode cannot be driven anywhere by anything that sends
+   * the command once, which is everything in this plugin. Offering it as a
+   * choice would be offering to break the desk.
+   *
+   * It leaves the handset alone either way: one touch is about what a *command*
+   * does, not about what the buttons do.
+   */
+  async #applyMotionMode(): Promise<void> {
+    if (this.#motionModeApplied) {
+      return;
+    }
+    const { motionMode } = this.#settings;
+    if (motionMode === null) {
+      return;
+    }
+    this.#motionModeApplied = true;
+
+    if (motionMode === MOTION_ONE_TOUCH) {
+      return;
+    }
+    if (!this.#transport.connected) {
+      return;
+    }
+
+    await this.#transport.send(Cmd.MOTION_MODE, [MOTION_ONE_TOUCH]);
+
+    this.#log.warn(
+      'the desk was in hold mode, where a single GOTO_HEIGHT only nudges it — ' +
+        'one-touch mode stored. If it still will not drive itself, reset the desk: ' +
+        'run it to the bottom and hold the down key until it re-homes.',
+    );
+  }
+
   #onHeight(heightMm: number): void {
     this.#heightMm = heightMm;
 
@@ -1023,6 +1075,7 @@ export class Desk extends EventEmitter {
     this.#refreshed = false;
     this.#ecoApplied = false;
     this.#sensitivityApplied = false;
+    this.#motionModeApplied = false;
     this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');

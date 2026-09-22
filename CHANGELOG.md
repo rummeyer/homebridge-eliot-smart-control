@@ -23,6 +23,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   asked for. Off it reads 0, because a timer that is not running has no
   remainder to show. `timerSlider: false` leaves it out.
 
+### Changed
+
+- **The desk is put into one-touch mode when it is found in hold mode.** In
+  hold mode the control box treats `GOTO_HEIGHT` as a nudge and waits to be
+  asked again, so a single command moves the desk a centimetre and stops —
+  which is to say the plugin cannot drive the desk at all. There is nothing to
+  configure, because the alternative is a plugin that does not work. `0` is one
+  touch and `1` is hold, the way round the Eliot app's own command table has it.
+
 ## [1.6.3] — 2026-09-21
 
 ### Changed
