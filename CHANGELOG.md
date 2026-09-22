@@ -6,6 +6,13 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Reconnect attempts stop thinning out at thirty seconds** rather than a
+  minute. The ceiling is what somebody waits after the thing blocking the
+  dongle goes away, and a minute of that is a minute of a desk showing as
+  unreachable when it is not.
+
 ## [1.7.0] — 2026-09-22
 
 ### Added
