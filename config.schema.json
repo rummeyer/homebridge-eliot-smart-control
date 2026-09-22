@@ -217,6 +217,7 @@
         "desks[].mac",
         "desks[].idlePollSeconds",
         "desks[].ecoMode",
+        "desks[].collisionSensitivity",
         "desks[].childLockSwitch",
         "desks[].memorySwitches",
         {
@@ -230,6 +231,7 @@
             "desks[].autoMove.standingMm",
             "desks[].autoMove.intervalMinutes",
             "desks[].autoMove.warnMinutes",
+            "desks[].autoMove.timerSlider",
             "desks[].autoMove.switchOffDaily",
             {
               "key": "desks[].autoMove.windows",

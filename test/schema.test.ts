@@ -157,3 +157,48 @@ test('nothing is titled twice over', () => {
     }
   }
 });
+
+test('every setting is in the layout, or the UI never shows it', () => {
+  // The Homebridge UI renders the layout, not the schema. A field added to
+  // `properties` and forgotten in `layout` validates, saves, works when typed
+  // into config.json by hand — and is invisible on the settings page, with
+  // nothing anywhere to say why. Both collisionSensitivity and timerSlider
+  // shipped that way, and were found by their owner looking for a switch that
+  // was not there.
+  const keys: string[] = [];
+  const walk = (node: unknown): void => {
+    if (typeof node === 'string') {
+      keys.push(node);
+      return;
+    }
+    if (Array.isArray(node)) {
+      for (const child of node) {
+        walk(child);
+      }
+      return;
+    }
+    if (node && typeof node === 'object') {
+      const entry = node as Record<string, unknown>;
+      if (typeof entry.key === 'string') {
+        keys.push(entry.key);
+      }
+      walk(entry.items);
+    }
+  };
+  walk(schema.layout);
+
+  const laidOut = new Set(keys);
+  const missing: string[] = [];
+  for (const name of Object.keys(desk)) {
+    if (!laidOut.has(`desks[].${name}`)) {
+      missing.push(`desks[].${name}`);
+    }
+  }
+  for (const name of Object.keys(desk.autoMove.properties)) {
+    if (!laidOut.has(`desks[].autoMove.${name}`)) {
+      missing.push(`desks[].autoMove.${name}`);
+    }
+  }
+
+  assert.deepEqual(missing, [], 'these settings exist but no one can see them');
+});
