@@ -6,13 +6,6 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-### Changed
-
-- **Reconnect attempts stop thinning out at thirty seconds** rather than a
-  minute. The ceiling is what somebody waits after the thing blocking the
-  dongle goes away, and a minute of that is a minute of a desk showing as
-  unreachable when it is not.
-
 ## [1.7.0] — 2026-09-22
 
 ### Added
@@ -39,7 +32,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   asked again, so a single command moves the desk a centimetre and stops —
   which is to say the plugin cannot drive the desk at all. There is nothing to
   configure, because the alternative is a plugin that does not work. `0` is one
-  touch and `1` is hold, the way round the Eliot app's own command table has it.
+  touch and `1` is hold, now confirmed against a control box rather than read
+  out of the app: written to a desk found in hold mode, the handset changed
+  behaviour immediately and without a reset. It changes the handset as well as
+  the commands, so it is a write somebody standing at the desk will notice.
+- **Reconnect attempts stop thinning out at thirty seconds** rather than a
+  minute. The ceiling is what somebody waits after the thing blocking the
+  dongle goes away — usually the Eliot app, which holds the dongle's one
+  connection until it is closed — and a minute of that is a minute of a desk
+  showing as unreachable when it is not.
 
 ## [1.6.3] — 2026-09-21
 
