@@ -280,10 +280,20 @@ reset — so "the settings block only takes effect at a reset" is not a rule
 about the block, it is a fact about those two fields. What `SENSITIVITY` does
 is still unknown; it has not been measured either way.
 
-What is still not measured is the consequence: nobody has yet watched a single
-`GOTO_HEIGHT` carry the desk the whole way in one-touch mode. That is the
-behaviour the mode is wanted for, and it is one drag of the Home app slider
-away.
+**And the consequence, measured the same day.** With `19 00` in force, one
+`GOTO_HEIGHT` and nothing else:
+
+```
+11:15:04  moving to 50% (990 mm) from 799 mm
+11:15:04  → F1 F1 1B 02 03 DE FE 7E
+          799 → 836 → 880 → 924 → 968 → 989 mm
+11:15:12  move ended: arrived at 989 mm
+```
+
+190 mm in eight seconds, about 24 mm/s, stopping a millimetre short. So the
+sentence at the top of this section is not a reading of the app any more: in
+one-touch mode a single `GOTO_HEIGHT` carries the desk, and that is what the
+plugin depends on.
 
 The wrong version was believed because it seemed to have been confirmed: with
 `00` stored the desk moved 10 mm on a `GOTO_HEIGHT` and stopped, which looks
@@ -414,11 +424,24 @@ low. It is the box deciding by itself that something is in the way, and it is a
 different thing from the stall check in this plugin, which only notices
 *afterwards* that the desk has stopped.
 
-**How high a setting feels.** On 22.09.2026 the desk's owner rested their arms
-lightly on the desk during an automatic move. The box stopped after nine
-millimetres — `801 → 810 mm` — and the plugin reported `stalled` 1.5 s later.
-The trace shows one command going out, the `GOTO_HEIGHT` itself, and no poll
-during the move, so nothing in the plugin ended it. The box did.
+**One stop that is still not explained.** On 22.09.2026 at 09:47 the desk's
+owner rested their arms lightly on the desk during an automatic move. The box
+stopped after nine millimetres — `801 → 810 mm` — and the plugin reported
+`stalled` 1.5 s later. The trace shows one command going out, the
+`GOTO_HEIGHT` itself, and no poll during the move, so nothing in the plugin
+ended it.
+
+This was written up here as the box's anti-collision, which was too quick. The
+desk was also holding `MOTION_MODE = 01` at the time, and a nine-millimetre
+nudge is exactly what hold mode produces — see the `MOTION_MODE` section. Four
+things differ between that run and the one at 11:15 that drove 190 mm without
+complaint: the motion mode, this setting, a reset in between, and whether
+anybody's arms were on the desk. One run cannot separate four variables.
+
+So this stop is evidence that the box stopped itself, and nothing more
+specific. Repeating the 09:47 conditions — arms resting, one `GOTO_HEIGHT`, now
+at `low` — is the test that would say whether this setting is the one that
+matters, and it has not been done.
 
 **Verified stored, on this hardware, 22.09.2026.** With the plugin disabled so
 the dongle was free:
