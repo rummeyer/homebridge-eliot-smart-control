@@ -239,7 +239,7 @@ step commands and could not stop it properly.
 | `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
 | `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026, verified on hardware 22.09.2026** — see below |
 | `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
-| `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low. **Verified stored**: 2 → 3 → 2, each read back — see below |
+| `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low. **Verified stored**: 2 → 3 → 2, each read back; takes effect at the next reset — see below |
 | `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
 | `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
 | `PUT_LIMIT_MIN` | `22` | 2 | Set the soft minimum to a height |
@@ -276,9 +276,10 @@ reaches the buttons, not just the commands.
 **And it bites at once.** No reset happened between the write at 10:57:39 and
 the confirmation. That sets `MOTION_MODE` apart from `VELOCITY` and
 `LOW_POWER`, which sit in the same settings block and stay dormant until a
-reset — so "the settings block only takes effect at a reset" is not a rule
-about the block, it is a fact about those two fields. What `SENSITIVITY` does
-is still unknown; it has not been measured either way.
+reset, as does `SENSITIVITY`. `MOTION_MODE` is so far the only field in this
+block known to bite on the spot, which is worth remembering before assuming
+the block behaves one way: three of its fields wait for a reset and one does
+not.
 
 **And the consequence, measured the same day.** With `19 00` in force, one
 `GOTO_HEIGHT` and nothing else:
@@ -457,12 +458,14 @@ the dongle was free:
 The round trip works in both directions and the box reports the new value
 immediately.
 
-**When it starts to bite is not known.** `VELOCITY` and `LOW_POWER` sit in the
-same block and are stored without coming into force until a reset, so this one
-may well behave the same way. Nobody has driven the desk into an obstruction at
-two settings to find out, and the owner explicitly asked for the write to be
-verified without testing its effect. Until somebody measures it, neither answer
-belongs in this file.
+**It takes effect at the next reset, not before.** Tested by the desk's owner
+on 22.09.2026, after this file had spent the day saying the question was open.
+So it behaves like `VELOCITY` and `LOW_POWER`, which share this block, and not
+like `MOTION_MODE`, which bites on the spot.
+
+Which means a change here is a promise about the desk's behaviour after its
+next re-home — the plugin's log and the settings page both say so, and they are
+right to.
 
 ### When the box streams its height, and when a poll cancels the move
 
