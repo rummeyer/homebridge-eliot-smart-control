@@ -10,6 +10,7 @@
 
 <p align="center">
   <a href="https://www.npmjs.com/package/homebridge-eliot-smart-control"><img src="https://img.shields.io/npm/v/homebridge-eliot-smart-control?label=npm" alt="npm"></a>
+  <a href="https://www.npmjs.com/package/homebridge-eliot-smart-control"><img src="https://img.shields.io/npm/dt/homebridge-eliot-smart-control" alt="Downloads"></a>
   <a href="https://github.com/rummeyer/homebridge-eliot-smart-control/actions/workflows/build.yml"><img src="https://github.com/rummeyer/homebridge-eliot-smart-control/actions/workflows/build.yml/badge.svg" alt="CI"></a>
   <a href="https://github.com/rummeyer/homebridge-eliot-smart-control/blob/main/LICENSE"><img src="https://img.shields.io/badge/licence-MIT-blue" alt="Licence"></a>
   <img src="https://img.shields.io/badge/homebridge-%E2%89%A5%202.0.0-purple" alt="Homebridge 2.0.0+">
@@ -17,8 +18,6 @@
 </p>
 
 <p align="center">
-  <a href="https://github.com/sponsors/rummeyer"><img src="https://img.shields.io/badge/donate-GitHub%20Sponsors-yellow" alt="Donate with GitHub Sponsors"></a>
-  <a href="https://paypal.me/rummeyer"><img src="https://img.shields.io/badge/donate-PayPal-yellow" alt="Donate with PayPal"></a>
   <a href="https://buymeacoffee.com/rummeyer"><img src="https://img.shields.io/badge/donate-Buy%20Me%20a%20Coffee-yellow" alt="Buy Me a Coffee"></a>
 </p>
 
