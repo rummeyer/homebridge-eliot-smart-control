@@ -124,6 +124,12 @@ Once on, inside the hours you have set, the desk alternates between your
 sitting and standing heights. It always heads for whichever of the two it is
 further from, so a desk parked halfway still does the right thing.
 
+**A break between two windows pauses the timer.** With 08:00–12:00 and
+13:00–16:00, whatever is left at noon is still left at 13:00, and the slider
+holds still over lunch. If the desk would move within the warning time, it
+waits for the warning first. Overnight does not count as a break: each
+morning starts a full interval.
+
 **Moving the desk yourself restarts the timer.** That is the snooze: when the
 warning says it is about to move and you are mid-call, nudge the desk with the
 handset and you have bought another interval. It is also simply true — the

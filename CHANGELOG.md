@@ -6,6 +6,22 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A gap between working hours pauses the auto-movement countdown** instead
+  of throwing it away. With windows of 08:00–12:00 and 13:00–16:00, a
+  countdown that has ten minutes left at noon still has ten minutes left at
+  13:00. Before this, the afternoon always started a fresh interval. The Timer
+  slider holds still over lunch. The move never comes sooner than the warning
+  time, so the warning that was withdrawn at 12:00 is raised again first. A
+  handset move during the break, turning auto movement off and on, or a new
+  day each start a full interval.
+
+### Added
+
+- **Buy Me a Coffee** as a third funding link, next to GitHub Sponsors and
+  PayPal.
+
 ## [1.7.1] — 2026-09-23
 
 ### Changed

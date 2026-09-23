@@ -90,6 +90,16 @@ export class AutoMover {
 
   /** When the next move is due, or null when nothing is scheduled. */
   #dueAt: number | null = null;
+  /**
+   * What was left of the countdown when a window closed, and on which day.
+   *
+   * A gap between two windows — lunch, from 12 to 13 — pauses the countdown
+   * rather than throwing it away: somebody who stood up at 11:50 has not been
+   * standing for a fresh thirty minutes at 13:00, they have ten to go. Only
+   * within a day, though. Overnight is not a pause, and the next morning starts
+   * with a full interval like any first window.
+   */
+  #held: { ms: number; day: string } | null = null;
   /** Whether the warning for the currently scheduled move has been raised. */
   #warned = false;
   /** Whether the owner has switched this on. Off until told otherwise. */
@@ -128,6 +138,7 @@ export class AutoMover {
     this.#enabled = on;
     this.#enabledDay = on ? dayKey(now) : null;
     this.#warned = false;
+    this.#held = null;
     // Switching on starts the countdown at its full length here rather than
     // leaving it to the next poll: a slider that reads empty for the first
     // thirty seconds after switching on reads as broken. Only inside a window,
@@ -164,17 +175,19 @@ export class AutoMover {
    *
    * 100 when it is on but nothing is scheduled, which is what being outside the
    * working hours looks like: full, and waiting for a window rather than running
-   * down towards one.
+   * down towards one. In a gap between two windows it is whatever was left when
+   * the first one closed, standing still until the next one opens.
    */
   remainingPercent(now: Date = new Date()): number {
     if (!this.#enabled) {
       return 0;
     }
+    const full = this.#opts.intervalMinutes * MINUTE;
     if (this.#dueAt === null) {
-      return 100;
+      const held = this.#heldFor(now);
+      return held === null ? 100 : Math.min(Math.round((held / full) * 100), 100);
     }
     const left = this.#dueAt - now.getTime();
-    const full = this.#opts.intervalMinutes * MINUTE;
     return Math.min(Math.max(Math.round((left / full) * 100), 0), 100);
   }
 
@@ -227,7 +240,13 @@ export class AutoMover {
    * and the clock on that restarts whenever the height does.
    */
   noteManualMove(now: number): void {
-    if (!this.#enabled || !this.inWorkingTime(new Date(now))) {
+    if (!this.#enabled) {
+      return;
+    }
+    if (!this.inWorkingTime(new Date(now))) {
+      // Moved over lunch: the height changed, so the time held for it is gone,
+      // and the next window starts a full interval.
+      this.#held = null;
       return;
     }
     this.#dueAt = now + this.#opts.intervalMinutes * MINUTE;
@@ -247,6 +266,30 @@ export class AutoMover {
     }
     const minutes = now.getHours() * 60 + now.getMinutes();
     return this.#windows.some((w) => minutes >= w.from && minutes < w.to);
+  }
+
+  /**
+   * When the window that last closed today closed, as a time.
+   *
+   * The countdown is held as it stood at that moment, not at the first poll
+   * after it: with the desk out of reach at 12:00 there is no poll until it is
+   * back, and the countdown would otherwise have run on into the lunch break.
+   * Null before the first window of the day, when there is nothing to hold.
+   */
+  #lastClose(now: Date): number | null {
+    const minutes = now.getHours() * 60 + now.getMinutes();
+    const closed = this.#windows.filter((w) => w.to <= minutes).map((w) => w.to);
+    if (closed.length === 0) {
+      return null;
+    }
+    const close = Math.max(...closed);
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    return midnight + close * MINUTE;
+  }
+
+  /** What is held for today, if anything. */
+  #heldFor(now: Date): number | null {
+    return this.#held !== null && this.#held.day === dayKey(now) ? this.#held.ms : null;
   }
 
   /**
@@ -284,7 +327,12 @@ export class AutoMover {
     if (!this.#enabled || !this.inWorkingTime(now)) {
       // Outside the hours nothing is pending, and any warning is withdrawn —
       // a phone that buzzes at 17:05 about a move that will never happen is
-      // worse than one that stays quiet.
+      // worse than one that stays quiet. What was left is held, in case another
+      // window opens today.
+      const closed = this.#lastClose(now);
+      if (this.#enabled && this.#dueAt !== null && closed !== null) {
+        this.#held = { ms: Math.max(this.#dueAt - closed, 0), day: dayKey(now) };
+      }
       this.#dueAt = null;
       return this.#withdraw();
     }
@@ -297,7 +345,16 @@ export class AutoMover {
       // First poll inside a window: start the clock, do not move. Moving the
       // moment a window opens would mean the desk moves at 08:00 sharp every
       // day, before anyone has sat down at it.
-      this.#dueAt = ms + this.#opts.intervalMinutes * MINUTE;
+      //
+      // After a gap earlier the same day, the clock picks up where it stopped —
+      // but never closer to the move than the warning, which was withdrawn when
+      // the window closed and is owed again before anything moves.
+      const held = this.#heldFor(now);
+      this.#held = null;
+      this.#dueAt =
+        held === null
+          ? ms + this.#opts.intervalMinutes * MINUTE
+          : ms + Math.max(held, this.#opts.warnMinutes * MINUTE);
       return this.#withdraw();
     }
 

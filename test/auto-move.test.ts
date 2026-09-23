@@ -136,6 +136,69 @@ test('outside the windows it stays quiet, and withdraws a warning', () => {
   );
 });
 
+test('lunch pauses the countdown, and 13:00 carries on where 12:00 left it', () => {
+  // Stood up at 11:40: ten minutes of the interval are still to come at noon.
+  const mover = running(at(11, 40));
+  mover.poll(at(11, 40), 800, false);
+
+  mover.poll(at(12, 0), 800, false);
+  assert.equal(mover.dueAt, null, 'nothing is due over lunch');
+  assert.equal(mover.remainingPercent(at(12, 30)), 33, 'the slider stands where it stopped');
+
+  mover.poll(at(13, 0), 800, false);
+  assert.equal(mover.dueAt, at(13, 10).getTime(), 'the ten minutes, not a fresh thirty');
+  assert.equal(mover.poll(at(13, 5), 800, false).kind, 'warn');
+  assert.equal(mover.poll(at(13, 10), 800, false).kind, 'move');
+});
+
+test('the pause is held from when the window closed, not from the next poll', () => {
+  // Due 12:10. The desk was out of reach from 11:58, so the first poll after
+  // the window closed comes at 12:20 — after the move would have been due.
+  const mover = running(at(11, 40));
+  mover.poll(at(11, 40), 800, false);
+  mover.poll(at(12, 20), 800, false);
+
+  mover.poll(at(13, 0), 800, false);
+  assert.equal(mover.dueAt, at(13, 10).getTime());
+});
+
+test('a pause that caught the warning still warns before the move', () => {
+  // Due 12:02, warned at 11:57, withdrawn at 12:00 with two minutes left.
+  const mover = running(at(11, 32));
+  mover.poll(at(11, 32), 800, false);
+  assert.equal(mover.poll(at(11, 57), 800, false).kind, 'warn');
+  assert.equal(mover.poll(at(12, 0), 800, false).kind, 'clear');
+
+  mover.poll(at(13, 0), 800, false);
+  assert.equal(mover.dueAt, at(13, 5).getTime(), 'never closer than the warning');
+  assert.equal(mover.poll(at(13, 0), 800, false).kind, 'warn');
+});
+
+test('a handset move over lunch gives the afternoon a full interval', () => {
+  const mover = running(at(11, 50));
+  mover.poll(at(11, 50), 800, false);
+  mover.poll(at(12, 0), 800, false);
+
+  mover.noteManualMove(at(12, 30).getTime());
+  assert.equal(mover.remainingPercent(at(12, 30)), 100);
+
+  mover.poll(at(13, 0), 800, false);
+  assert.equal(mover.dueAt, at(13, 30).getTime());
+});
+
+test('overnight is not a pause', () => {
+  // Five minutes left at 16:00; the next morning starts afresh.
+  const mover = running(at(15, 35));
+  mover.poll(at(15, 35), 800, false);
+  mover.poll(at(16, 0), 800, false);
+  assert.equal(mover.remainingPercent(at(16, 30)), 17, 'held for the rest of the day');
+
+  const tuesday = (hh: number, mm = 0) => new Date(2026, 8, 22, hh, mm, 0);
+  assert.equal(mover.remainingPercent(tuesday(7)), 100);
+  mover.poll(tuesday(8), 800, false);
+  assert.equal(mover.dueAt, tuesday(8, 30).getTime());
+});
+
 test('the weekend is left alone', () => {
   const mover = running();
   const saturday = new Date(2026, 8, 26, 9, 0, 0);

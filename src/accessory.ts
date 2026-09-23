@@ -463,13 +463,14 @@ export class EliotAccessory {
     }
 
     if (!mover.inWorkingTime()) {
-      // Outside the hours there is no countdown to drag: the timer waits full
-      // for the next window, and a drag to zero there is not a move either.
-      // The slider goes back to where it was.
+      // Outside the hours there is no countdown to drag: the timer waits for
+      // the next window — full, or held where the last one left it — and a
+      // drag to zero there is not a move either. The slider goes back to
+      // where it was.
       if (wasEnabled) {
         this.#platform.log.info(
           `${this.#config.name}: outside the working hours the timer does not run; ` +
-            'it starts when the next window opens',
+            'it carries on when the next window opens',
         );
       }
       this.#publishTimer(true);
