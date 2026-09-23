@@ -460,6 +460,8 @@ immediately.
 
 **It takes effect at the next reset, not before.** Tested by the desk's owner
 on 22.09.2026, after this file had spent the day saying the question was open.
+Tested again on 23.09.2026 with 1.7.0, with the same result: the change only
+arrives with a reset.
 So it behaves like `VELOCITY` and `LOW_POWER`, which share this block, and not
 like `MOTION_MODE`, which bites on the spot.
 
