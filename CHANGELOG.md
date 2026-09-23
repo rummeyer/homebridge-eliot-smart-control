@@ -6,7 +6,7 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
-## [1.7.0] — 2026-09-22
+## [1.7.0] — 2026-09-23
 
 ### Added
 
@@ -468,7 +468,7 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.3...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.7.0...HEAD
 [1.7.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.3...v1.7.0
 [1.6.3]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.2...v1.6.3
 [1.6.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.6.1...v1.6.2
