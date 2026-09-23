@@ -938,15 +938,10 @@ export class Desk extends EventEmitter {
    * {@link #applyEco}: a write that changes nothing still reads in the log like
    * something happened.
    *
-   * What is established about `SENSITIVITY` (`0x1D`) is the round trip — the
-   * box reports what it holds, takes a new value and reports that one back,
-   * measured on this hardware on 22.09.2026 going 2 → 3 → 2. What is *not*
-   * established is when it starts to bite. Eco mode and travel speed are
-   * stored and only come into force at a reset, and this field sits in the
-   * same block, so it may well behave the same way — but nobody has driven the
-   * desk into an obstruction at two settings to find out, and until somebody
-   * has, saying either way would be inventing a measurement. The log says what
-   * was done, not what it will do.
+   * It behaves like eco mode and travel speed, which share its block: the box
+   * reports the new value at once — measured 2 → 3 → 2 on 22.09.2026 — and
+   * keeps braking at the old one until the desk is reset, which the desk's
+   * owner tested the same day.
    */
   async #applySensitivity(): Promise<void> {
     if (this.#sensitivityApplied) {
@@ -972,8 +967,8 @@ export class Desk extends EventEmitter {
 
     this.#log.warn(
       `anti-collision sensitivity ${name(want)} stored on the desk (it had ` +
-        `${name(sensitivity)}). Whether that takes effect now or at the next reset ` +
-        'has not been measured.',
+        `${name(sensitivity)}). The desk keeps braking at the old setting until it is ` +
+        'reset by hand: drive it to the bottom and hold the down key until it re-homes.',
     );
   }
 

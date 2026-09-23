@@ -15,8 +15,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   control box's brake, not the plugin's stall check — on a sensitive setting,
   arms resting on the desk are enough to end a move nine millimetres in and
   have it reported as stalled. Written only when it differs from what the box
-  is holding. The write is verified on hardware; whether it takes effect before
-  the desk is reset is not, and the log says so rather than guessing.
+  is holding. Like eco mode, it takes effect when the desk is next reset, and
+  the log says so.
 - **The auto-movement countdown is visible, and adjustable, as a `Timer`
   slider.** A light whose brightness is how much of the interval is left before
   the next move. Dragging it changes the wait and nothing else: all the way up
