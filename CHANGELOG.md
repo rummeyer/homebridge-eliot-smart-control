@@ -23,7 +23,9 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   is a fresh interval, all the way down runs the timer out, which moves the desk
   at once and without the warning — nobody needs telling about a move they just
   asked for. Off it reads 0, because a timer that is not running has no
-  remainder to show. `timerSlider: false` leaves it out.
+  remainder to show. Outside the working hours it reads full and does
+  not run: switching on at 07:00 starts the countdown at 08:00, not at 07:00,
+  and a drag there is ignored rather than scheduling a move for later. `timerSlider: false` leaves it out.
 
 ### Changed
 

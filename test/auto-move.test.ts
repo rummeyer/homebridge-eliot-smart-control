@@ -234,6 +234,31 @@ test('outside the hours the timer is full rather than counting down to nothing',
   assert.equal(mover.remainingPercent(at(7, 30)), 100, 'so it waits at full, and is not empty');
 });
 
+test('switched on before the hours, the timer waits full for the window', () => {
+  // Switched on over breakfast. Nothing may run down before 08:00, whether or
+  // not anybody polls — the desk may be unreachable, and then nobody does.
+  const mover = running(at(7));
+  assert.equal(mover.dueAt, null, 'no countdown yet');
+  assert.equal(mover.remainingPercent(at(7, 45)), 100, 'full, not run down');
+
+  mover.poll(at(8), 800, false);
+  assert.equal(mover.dueAt, at(8, 30).getTime(), 'the interval starts with the window');
+});
+
+test('outside the hours the timer cannot be dragged or run out', () => {
+  const mover = running(at(12, 10));
+
+  mover.setRemainingPercent(20, at(12, 10));
+  assert.equal(mover.remainingPercent(at(12, 10)), 100, 'a drag does not stick');
+
+  mover.expire(at(12, 10));
+  assert.equal(mover.dueAt, null, 'running it out schedules nothing');
+  assert.equal(mover.poll(at(12, 11), 800, false).kind, 'none', 'and nothing moves');
+
+  mover.noteManualMove(at(12, 20).getTime());
+  assert.equal(mover.dueAt, null, 'nor does a nudge on the handset start a clock');
+});
+
 test('dragging the timer changes the wait and nothing else', () => {
   const mover = running(at(9));
   mover.poll(at(9), 800, false);

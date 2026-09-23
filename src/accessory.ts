@@ -461,6 +461,20 @@ export class EliotAccessory {
       this.#setAutoMove(true);
     }
 
+    if (!mover.inWorkingTime()) {
+      // Outside the hours there is no countdown to drag: the timer waits full
+      // for the next window, and a drag to zero there is not a move either.
+      // The slider goes back to where it was.
+      if (wasEnabled) {
+        this.#platform.log.info(
+          `${this.#config.name}: outside the working hours the timer does not run; ` +
+            'it starts when the next window opens',
+        );
+      }
+      this.#publishTimer(true);
+      return;
+    }
+
     if (brightness === 0) {
       if (!wasEnabled) {
         // Switched on while the slider sat at zero, because zero is what off

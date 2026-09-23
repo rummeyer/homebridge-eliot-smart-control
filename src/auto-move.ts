@@ -118,7 +118,8 @@ export class AutoMover {
   /**
    * Turn the whole thing on or off.
    *
-   * Switching on starts a full interval. Switching off forgets the countdown
+   * Switching on inside a window starts a full interval; outside one it starts
+   * nothing, and the first poll inside a window does. Switching off forgets the countdown
    * rather than pausing it — coming back to a desk that moves the instant it is
    * re-enabled is not what the switch appears to promise, and it is why the
    * timer reads 0 while this is off rather than holding where it stopped.
@@ -128,12 +129,14 @@ export class AutoMover {
     this.#enabledDay = on ? dayKey(now) : null;
     this.#warned = false;
     // Switching on starts the countdown at its full length here rather than
-    // leaving it to the next poll. The poll would get there within half a
-    // minute either way, and until the timer was on show that was invisible —
-    // a slider that reads empty for the first thirty seconds after switching
-    // on reads as broken. Outside a window the poll still clears it, so this
-    // does not bring back a desk that moves at 08:00 sharp.
-    this.#dueAt = on ? now.getTime() + this.#opts.intervalMinutes * MINUTE : null;
+    // leaving it to the next poll: a slider that reads empty for the first
+    // thirty seconds after switching on reads as broken. Only inside a window,
+    // though. Outside one the slider would run down until the next poll
+    // cleared it — or for as long as the desk is unreachable, when there is no
+    // poll — and a countdown that visibly runs out at 07:30 and then does
+    // nothing looks like a promise broken rather than kept.
+    this.#dueAt =
+      on && this.inWorkingTime(now) ? now.getTime() + this.#opts.intervalMinutes * MINUTE : null;
   }
 
   /** The day it was switched on for, so a restart can carry it across. */
@@ -189,7 +192,7 @@ export class AutoMover {
    * it always did, at the usual distance from the move.
    */
   setRemainingPercent(percent: number, now: Date = new Date()): void {
-    if (!this.#enabled) {
+    if (!this.#enabled || !this.inWorkingTime(now)) {
       return;
     }
     const clamped = Math.min(Math.max(percent, 0), 100);
@@ -208,7 +211,7 @@ export class AutoMover {
    * for it.
    */
   expire(now: Date = new Date()): void {
-    if (!this.#enabled) {
+    if (!this.#enabled || !this.inWorkingTime(now)) {
       return;
     }
     this.#dueAt = now.getTime();
@@ -224,15 +227,21 @@ export class AutoMover {
    * and the clock on that restarts whenever the height does.
    */
   noteManualMove(now: number): void {
-    if (!this.#enabled) {
+    if (!this.#enabled || !this.inWorkingTime(new Date(now))) {
       return;
     }
     this.#dueAt = now + this.#opts.intervalMinutes * MINUTE;
     this.#warned = false;
   }
 
-  /** Whether `now` falls inside a configured window on a configured day. */
-  #isWorkingTime(now: Date): boolean {
+  /**
+   * Whether `now` falls inside a configured window on a configured day.
+   *
+   * Outside one there is no countdown, and nothing that would start one — a
+   * switch-on, a drag of the slider, a nudge on the handset — does. The first
+   * poll inside a window starts it.
+   */
+  inWorkingTime(now: Date = new Date()): boolean {
     if (!this.#opts.days.includes(now.getDay())) {
       return false;
     }
@@ -272,7 +281,7 @@ export class AutoMover {
       return { kind: 'off' };
     }
 
-    if (!this.#enabled || !this.#isWorkingTime(now)) {
+    if (!this.#enabled || !this.inWorkingTime(now)) {
       // Outside the hours nothing is pending, and any warning is withdrawn —
       // a phone that buzzes at 17:05 about a move that will never happen is
       // worse than one that stays quiet.
