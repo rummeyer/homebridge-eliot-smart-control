@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **`tools/speed-test.js`** measures travel speed over one `GOTO_HEIGHT`
+  without polling during the move. `docs/PROTOCOL.md` records what it found
+  above the app's ceiling of 40: the box stores any value up to 255 and runs
+  45, 50 and 55 at 48, 54 and 60 mm/s, and 255 made the motor stutter. The
+  plugin still only ever writes 20 or 40.
+
 ## [1.8.1] — 2026-09-23
 
 ### Changed

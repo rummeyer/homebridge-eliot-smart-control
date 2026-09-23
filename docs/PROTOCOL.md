@@ -238,7 +238,7 @@ step commands and could not stop it properly.
 | `STOP` | `2B` | 0 | Stop now. **Verified**: sent 108 mm into a move, halted after 13 mm of coasting |
 | `LOW_POWER` | `18` | 1 | `0` off, `1` on. **Verified stored**; takes effect only after a reset — see below |
 | `MOTION_MODE` | `19` | 1 | `0` one touch, `1` hold the button. **Corrected 21.09.2026, verified on hardware 22.09.2026** — see below |
-| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers — see below |
+| `VELOCITY` | `13` | 1 | Travel speed; the app offers 28, 31, 35, 38, 40. **Verified stored**; found at 21, below anything the app offers. The box also stores anything above 40, up to 255 — **do not**, see below |
 | `SENSITIVITY` | `1D` | 1 | Anti-collision: `1` high, `2` medium, `3` low. **Verified stored**: 2 → 3 → 2, each read back; takes effect at the next reset — see below |
 | `LOCK` | `1F` | 1 | Child lock: `0` reads the state, `1` toggles it. **Verified** |
 | `PUT_LIMIT_MAX` | `21` | 2 | Set the soft maximum to a height |
@@ -417,6 +417,45 @@ dongle's single connection every two seconds. The symptoms are a control box
 that answers queries, accepts every command, moves nothing, and streams `04`
 where the height report belongs — which looks exactly like a desk that has lost
 its calibration, and is not one.
+
+### Above 40: the box takes it, and it should not be asked to
+
+The app stops at `VELOCITY 40`. The box does not. On 23.09.2026 every value
+tried — 45, 50, 60, 80, 100, 127, 200, 255 — was written bare and read back
+unchanged: nothing on the write side clamps or refuses.
+
+**255 was a mistake, and it is the reason this section exists.** Stored and
+made live with a reset, the reset's run to the bottom went **past the desk's
+lower limit, and the motor stuttered**, reported by the owner at the desk. `40`
+was written back at once and a second reset brought the desk back to normal.
+Whether 255 was already in force during that reset, and what the box makes of
+a value that far out, is not known; what is known is that going straight to the
+top of an untested range on a machine that moves was the wrong way to find out.
+
+Then, carefully, one reset per step, `GOTO_HEIGHT` 220 mm up each time, speed
+taken over the middle 60 % of the distance with `tools/speed-test.js`, which
+polls nothing while the desk moves:
+
+| `VELOCITY` | middle of the move | whole move, ramp included |
+|---|---|---|
+| 40 | **42.3 mm/s** | 35.3 mm/s |
+| 45 | **48.1 mm/s** | — |
+| 50 | **53.5 mm/s** | 44.4 mm/s |
+| 55 | **60.0 mm/s** | 48.2 mm/s |
+
+All with `LOW_POWER 0`, all landing within 1 mm of the target, and all four
+resets and moves sounding normal. Speed follows the value closely — about
+1.2 mm/s per step — so 55 is some 40 % faster than anything the app allows.
+The 40 row agrees with the 42.4 mm/s measured on 21.09.2026 with a different
+tool. One run per value; the individual steps (5.8, 5.4, 6.5 mm/s) are not
+worth reading into. Where between 55 and 255 the trouble starts was not looked
+for.
+
+**The desk was put back to 40 and testing stopped there.** That is the app's
+ceiling and the one the manufacturer stands behind; running the motor above it
+is the desk equivalent of derestricting a scooter. This plugin only ever writes
+`20` or `40` (`ECO_VELOCITY` and `FAST_VELOCITY` in `src/eliot/desk.ts`) and
+should stay that way.
 
 ### `SENSITIVITY` is the box's own brake, and it takes a write
 
