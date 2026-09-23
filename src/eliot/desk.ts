@@ -1125,6 +1125,11 @@ export class Desk extends EventEmitter {
     this.#handsetTimer = null;
     this.#handsetFrom = null;
     this.#refreshed = false;
+    // The settings too: a desk that lost power comes back with whatever its
+    // last reset committed, not what was stored since. Keeping the old values
+    // let the eco check run against them on reconnect, find nothing to do and
+    // say so, while the box was reporting something else.
+    this.#settings = { ...UNKNOWN_SETTINGS };
     this.#ecoApplied = false;
     this.#sensitivityApplied = false;
     this.#motionModeApplied = false;

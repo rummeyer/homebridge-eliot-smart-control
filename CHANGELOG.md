@@ -14,6 +14,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   45, 50 and 55 at 48, 54 and 60 mm/s, and 255 made the motor stutter. The
   plugin still only ever writes 20 or 40.
 
+### Fixed
+
+- **Eco mode is checked again after a reconnect.** The plugin kept the
+  desk's settings from the previous connection and compared against those, so
+  a desk that lost power and came back running an older speed was reported as
+  fine and left alone. It now forgets them when the link drops and waits for
+  the box to say what it has.
+
 ## [1.8.1] — 2026-09-23
 
 ### Changed

@@ -283,6 +283,28 @@ test('a setting written by somebody else is picked up on the next refresh', asyn
   assert.equal(desk.state.settings.velocity, 40);
 });
 
+test('eco is checked against what the box says after a reconnect, not before', async (t) => {
+  const box = new FakeDesk(880);
+  box.velocity = 40;
+  box.lowPower = false;
+  const desk = new Desk(box, silent, { idlePollMs: 0, eco: false });
+  t.after(() => desk.close());
+  await desk.start();
+  await tick(1400);
+  assert.equal(box.sent.includes(Cmd.VELOCITY), false);
+
+  // Unplugged and back: the box has dropped an unreset 40 and runs 55 again,
+  // as this desk did on 23.09.2026.
+  box.drop();
+  box.velocity = 55;
+  box.connected = true;
+  box.emit('connected');
+  await tick(1700);
+
+  assert.equal(desk.state.settings.velocity, 55);
+  assert.equal(box.velocity, 40);
+});
+
 test('connecting loads height, limits and the lock state', async (t) => {
   const { box, desk } = await ready(t);
 
