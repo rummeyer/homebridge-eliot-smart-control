@@ -644,3 +644,22 @@ test('a write that cannot be delivered ends the move at once', async (t) => {
   // immediately rather than inferred a few seconds later from silence.
   assert.equal(await desk.moveTo(100), 'disconnected');
 });
+
+test('a handset move is reported once, at its end, with where it stopped', async (t) => {
+  const { box, desk } = await ready(t, 880);
+  const seen: number[] = [];
+  desk.on('external-move', (mm) => seen.push(mm));
+
+  // The stream the box sends while somebody holds the down key: several
+  // heights a second, most of them less than the threshold apart.
+  for (let mm = 871; mm >= 800; mm -= 9) {
+    box.handset(mm);
+    await tick(150);
+  }
+  assert.equal(desk.handsetMoving, true, 'still going as far as anyone can tell');
+  assert.deepEqual(seen, [], 'nothing said while the desk is still moving');
+
+  await tick(1700);
+  assert.equal(desk.handsetMoving, false);
+  assert.deepEqual(seen, [808], 'once, with the height it came to rest at');
+});

@@ -190,6 +190,14 @@ export interface DeskOptions {
 const CANCEL_SETTLE_MS = 400;
 
 /**
+ * How long the heights have to stop before a handset move counts as over.
+ *
+ * The box streams a height every 150–300 ms while the handset drives it, so a
+ * gap of this length is somebody letting go, not the stream stuttering.
+ */
+const HANDSET_GAP_MS = 1500;
+
+/**
  * One touch is `0` and hold is `1`.
  *
  * The way round the Eliot app's own command table has it — `MOTION_PRESS` is
@@ -258,8 +266,9 @@ export interface Desk {
   /**
    * The desk moved and it was not us: the handset, or somebody leaning on it.
    *
-   * Carries the height it ended up at. Anything that wants to know a human is
-   * present listens to this — it is the only evidence of that the plugin has.
+   * Once per move, when it is over, carrying the height it ended up at.
+   * Anything that wants to know a human is present listens to this — it is
+   * the only evidence of that the plugin has.
    */
   on(event: 'external-move', listener: (heightMm: number) => void): this;
 }
@@ -293,6 +302,10 @@ export class Desk extends EventEmitter {
   #poll: NodeJS.Timeout | null = null;
   /** Until when height changes are the tail of our own move, not somebody's. */
   #settleUntil = 0;
+  /** Armed while the handset is driving; fires when the heights stop. */
+  #handsetTimer: NodeJS.Timeout | null = null;
+  /** Where the current handset move started. */
+  #handsetFrom: number | null = null;
   #closing = false;
   #refreshed = false;
   /** Whether the configured eco pair has been dealt with on this connection. */
@@ -1014,6 +1027,34 @@ export class Desk extends EventEmitter {
     );
   }
 
+  /** Whether somebody is driving the desk from the handset right now. */
+  get handsetMoving(): boolean {
+    return this.#handsetTimer !== null;
+  }
+
+  #armHandset(): void {
+    if (this.#handsetTimer) {
+      clearTimeout(this.#handsetTimer);
+    }
+    this.#handsetTimer = setTimeout(() => this.#endHandset(), HANDSET_GAP_MS);
+    this.#handsetTimer.unref();
+  }
+
+  #endHandset(): void {
+    if (this.#handsetTimer) {
+      clearTimeout(this.#handsetTimer);
+    }
+    this.#handsetTimer = null;
+    const from = this.#handsetFrom;
+    this.#handsetFrom = null;
+    const to = this.#heightMm;
+    if (from === null || to === null || !this.#transport.connected) {
+      return;
+    }
+    this.#log.debug(`moved elsewhere: ${from} → ${to} mm`);
+    this.emit('external-move', to);
+  }
+
   #onHeight(heightMm: number): void {
     this.#heightMm = heightMm;
 
@@ -1040,7 +1081,11 @@ export class Desk extends EventEmitter {
     const resting = this.#restingMm;
     if (resting !== null && Math.abs(heightMm - resting) < this.#opts.externalMoveMm) {
       // Within the noise of where it was already sitting. Report the height,
-      // but do not read intent into it.
+      // but do not read intent into it — though mid handset move, a small
+      // step is still the move going on.
+      if (this.#handsetTimer) {
+        this.#armHandset();
+      }
       this.#emitChange();
       return;
     }
@@ -1048,9 +1093,13 @@ export class Desk extends EventEmitter {
     // Nobody here asked for this. Either the handset moved it or it was moved
     // while we were away; either way the target follows the desk rather than
     // the desk being dragged back to a target it never agreed to.
+    // Said once per move, at its end: the box streams several heights a
+    // second while the handset drives it, and each of those is another step
+    // past the resting height. A pause longer than the stream ever leaves
+    // ends the move.
     if (resting !== null) {
-      this.#log.debug(`moved elsewhere: ${resting} → ${heightMm} mm`);
-      this.emit('external-move', heightMm);
+      this.#handsetFrom ??= resting;
+      this.#armHandset();
     }
     this.#restingMm = heightMm;
     this.#targetMm = heightMm;
@@ -1070,6 +1119,11 @@ export class Desk extends EventEmitter {
   #onDisconnected(): void {
     // The desk may be moved by hand while we are away, so nothing we hold is
     // trustworthy until it has been asked again.
+    if (this.#handsetTimer) {
+      clearTimeout(this.#handsetTimer);
+    }
+    this.#handsetTimer = null;
+    this.#handsetFrom = null;
     this.#refreshed = false;
     this.#ecoApplied = false;
     this.#sensitivityApplied = false;

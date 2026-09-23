@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A handset move restarts the auto-movement countdown once, when it ends,**
+  rather than for every height the desk streams on the way — about thirty
+  times for a trip from standing to sitting, each with its own log line.
+  While the handset is driving, auto movement also holds off, so a countdown
+  that runs out mid-move waits instead of fighting somebody for the desk.
+
 ## [1.7.0] — 2026-09-23
 
 ### Added

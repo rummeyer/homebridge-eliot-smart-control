@@ -341,7 +341,8 @@ export class EliotAccessory {
     }
 
     // A handset move is the snooze, and the only sign of a person this plugin
-    // gets. It restarts the interval wherever the countdown had got to.
+    // gets. Its end restarts the interval wherever the countdown had got to —
+    // once per move, not once per height the desk streams on the way.
     this.#desk.on('external-move', () => {
       if (!this.#mover?.enabled) {
         return;
@@ -541,7 +542,10 @@ export class EliotAccessory {
       return;
     }
 
-    const action = mover.poll(new Date(), state.heightMm, state.moving !== null);
+    // A handset move counts as busy: its end restarts the countdown, and a
+    // move started under somebody's hand would fight them for the desk.
+    const busy = state.moving !== null || this.#desk.handsetMoving;
+    const action = mover.poll(new Date(), state.heightMm, busy);
     if (action.kind === 'none') {
       return;
     }
