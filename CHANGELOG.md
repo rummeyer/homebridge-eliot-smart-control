@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.8.1] — 2026-09-23
+
+### Changed
+
+- **The README shows the npm download count and a Buy Me a Coffee badge**,
+  instead of three donate badges. GitHub Sponsors, PayPal and Buy Me a Coffee
+  all stay in `package.json` and `.github/FUNDING.yml`. No behaviour changes.
+
 ## [1.8.0] — 2026-09-23
 
 ### Changed
