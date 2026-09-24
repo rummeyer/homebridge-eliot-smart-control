@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.11.0] — 2026-09-24
+
 ### Changed
 
 - **Memory switches show where the desk is.** A switch is on while the desk
@@ -572,7 +574,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.1...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.11.0...HEAD
+[1.11.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.1...v1.11.0
 [1.10.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.2...v1.9.0
