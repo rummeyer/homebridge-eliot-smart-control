@@ -34,9 +34,12 @@ handset the ends of the slider follow.
 *"Hey Siri, set the desk to 100%."* Or put it in an automation: up for the
 morning meeting, down at the end of the day.
 
-**Your memory positions**, as buttons &mdash; the same ones as on the handset.
-Press one and the desk goes there; the button springs back, the way a scene
-does. Only positions you have actually stored appear.
+**Your memory positions**, as switches &mdash; the same ones as on the handset.
+A switch is on while the desk is at its position, however it got there: from
+the Home app, from the memory key on the handset, or by the slider. Switch one
+on and the desk goes there, and the switch stays on; if the move is called off
+at the handset before it arrives, the switch goes back off. Switching it off
+on the way stops the desk. Only positions you have actually stored appear.
 
 **The child lock**, as a switch. It shows the desk's real state, so if someone
 locks it at the handset the Home app knows.

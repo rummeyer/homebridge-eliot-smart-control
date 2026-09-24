@@ -272,6 +272,88 @@ test('pressing a restored switch actually moves the desk', async (t) => {
 
 });
 
+/** Which memory switches are on, by slot. */
+function memoriesOn(accessory: FakeAccessory): number[] {
+  return [1, 2, 3, 4].filter(
+    (slot) => accessory.getServiceById('Switch', `memory${slot}`)?.getCharacteristic('On').value === true,
+  );
+}
+
+/** The desk reporting a height, the way it streams them while it drives. */
+function height(transport: FakeTransport, mm: number): void {
+  transport.emit('frame', frame(Report.HEIGHT, [...be(mm), 0x07]));
+}
+
+test('a memory reached from the handset turns its switch on', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  assert.deepEqual(memoriesOn(accessory), [], 'at 880 mm the desk is at no memory');
+
+  for (const mm of [930, 980, 1001]) {
+    height(transport, mm);
+    await tick(100);
+  }
+  assert.deepEqual(memoriesOn(accessory), [], 'not while the handset is still driving it');
+
+  await tick(1600);
+  assert.deepEqual(memoriesOn(accessory), [3], 'memory 3 is 1000 mm; 1 mm off is there');
+
+  height(transport, 1100);
+  await tick(1600);
+  assert.deepEqual(memoriesOn(accessory), [], 'and off again once it is moved away');
+});
+
+test('a memory switched on in the Home app stays on while the desk goes there', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  const on = accessory.getServiceById('Switch', 'memory2')!.getCharacteristic('On');
+
+  await (on.handlers.set as (v: unknown) => unknown)(true);
+  await tick(50);
+  assert.deepEqual(memoriesOn(accessory), [2], 'on from the press');
+
+  for (const mm of [950, 1000, 1100, 1203]) {
+    height(transport, mm);
+    await tick(100);
+    assert.deepEqual(memoriesOn(accessory), [2], `still only 2 at ${mm} mm, past memory 3`);
+  }
+
+  await tick(1700);
+  assert.deepEqual(memoriesOn(accessory), [2], 'and on once it has arrived');
+});
+
+test('a memory move called off at the handset turns its switch back off', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  const on = accessory.getServiceById('Switch', 'memory2')!.getCharacteristic('On');
+
+  await (on.handlers.set as (v: unknown) => unknown)(true);
+  for (const mm of [930, 980, 1050]) {
+    height(transport, mm);
+    await tick(100);
+  }
+  assert.deepEqual(memoriesOn(accessory), [2]);
+
+  // Silence at 1050 mm: the box has stopped, 154 mm short.
+  await tick(1700);
+  assert.deepEqual(memoriesOn(accessory), [], 'it did not get there, so the switch says so');
+});
+
+test('switching a memory off on the way there stops the desk', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory);
+  const on = accessory.getServiceById('Switch', 'memory2')!.getCharacteristic('On');
+
+  await (on.handlers.set as (v: unknown) => unknown)(true);
+  height(transport, 930);
+  await tick(100);
+  await (on.handlers.set as (v: unknown) => unknown)(false);
+  await tick(50);
+
+  assert.ok(transport.sent.includes(Cmd.STOP), 'the desk was told to stop');
+  assert.deepEqual(memoriesOn(accessory), []);
+});
+
 test('the firmware version comes from the desk, not from a guess', async (t) => {
   const accessory = new FakeAccessory();
   const { transport } = await start(t, accessory);

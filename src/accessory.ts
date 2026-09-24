@@ -61,8 +61,16 @@ const TARGET_SETTLE_MS = 300;
 /** The desk has four memory buttons; we mirror however many are in use. */
 const MEMORY_SLOTS = [1, 2, 3, 4];
 
-/** How long a momentary switch stays on before springing back. */
-const RELEASE_MS = 1_000;
+/**
+ * How close the desk has to be to a memory height for that switch to be on.
+ *
+ * The control box stops within a couple of millimetres of a memory it drives
+ * to itself, and a desk nobody is touching still reports a few millimetres of
+ * wander. Twelve is what the desk itself allows before calling a memory move
+ * arrived, and it has to be at least that: any less and a move reported as
+ * arrived could end with its switch off.
+ */
+const MEMORY_MATCH_MM = 12;
 
 /**
  * The configured eco mode, or undefined for "leave it alone".
@@ -119,6 +127,10 @@ export class EliotAccessory {
   #firmware: number | null = null;
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
+  /** The memory switched on in the Home app whose move is still under way. */
+  #memoryGoing: number | null = null;
+  /** Counts presses, so a move can tell whether it is still the latest one. */
+  #memoryPress = 0;
   #lockService: Service | undefined;
   /** Auto-movement, when it is configured at all. */
   #autoService: Service | undefined;
@@ -241,6 +253,10 @@ export class EliotAccessory {
       this.#publish(state);
     });
     this.#desk.on('move-end', (outcome) => this.#onMoveEnd(outcome));
+    // The end of a handset move emits no change of its own — the last height
+    // already came with one, while the move was still going on — so this is
+    // where a memory reached from the handset gets its switch turned on.
+    this.#desk.on('external-move', () => this.#publishMemories());
   }
 
   get name(): string {
@@ -887,20 +903,14 @@ export class EliotAccessory {
       const service =
         restored ?? this.#accessory.addService(HapService.Switch, label, subtype);
       this.#name(service, label);
-      // Momentary, not stateful. What these are for is going somewhere, and a
-      // switch that stays on afterwards invites being switched off — which
-      // would have to mean something, and there is no opposite of having gone
-      // to a height. So it springs back, the way a scene does.
+      // On while the desk is at this memory, however it got there — this
+      // switch, the handset's memory key, or the slider — and on from the
+      // moment it is pressed, since that is where the desk is going. A move
+      // that ends short, because the handset called it off, turns it back off.
       service
         .getCharacteristic(Characteristic.On)
-        .onGet(() => false)
-        .onSet((value) => {
-          if (!value) {
-            return;
-          }
-          this.#setMemory(slot);
-          this.#release(service);
-        });
+        .onGet(() => this.#memoryAt() === slot)
+        .onSet((value) => this.#setMemorySwitch(slot, Boolean(value)));
       this.#memoryServices.set(slot, service);
       this.#platform.log.info(`${this.#config.name}: memory ${slot} at ${height} mm`);
     }
@@ -939,11 +949,72 @@ export class EliotAccessory {
     }
   }
 
-  /** Let a momentary switch fall back to off, the way a scene button does. */
-  #release(service: Service): void {
-    setTimeout(() => {
-      service.updateCharacteristic(this.#platform.api.hap.Characteristic.On, false);
-    }, RELEASE_MS).unref();
+  /**
+   * Which memory the desk is at, if any.
+   *
+   * A memory switched on in the Home app counts from the press, not from the
+   * arrival: the switch shows where the desk was sent, the way the slider
+   * does. Otherwise the desk has to be at rest — a desk passing a memory on
+   * its way somewhere else is not at it — and within {@link MEMORY_MATCH_MM}
+   * of the height. Two memories that close together would both match; the
+   * nearer one wins, so at most one switch is ever on.
+   */
+  #memoryAt(state: DeskState = this.#desk.state): number | null {
+    if (this.#memoryGoing !== null) {
+      return this.#memoryGoing;
+    }
+    const height = state.heightMm;
+    if (
+      !state.connected ||
+      !state.ready ||
+      height === null ||
+      state.moving !== null ||
+      this.#desk.handsetMoving
+    ) {
+      return null;
+    }
+    let best: number | null = null;
+    let bestOff = MEMORY_MATCH_MM + 1;
+    for (const slot of this.#memoryServices.keys()) {
+      const mm = state.memories[slot - 1];
+      if (mm == null) {
+        continue;
+      }
+      const off = Math.abs(mm - height);
+      if (off <= MEMORY_MATCH_MM && off < bestOff) {
+        best = slot;
+        bestOff = off;
+      }
+    }
+    return best;
+  }
+
+  #publishMemories(state: DeskState = this.#desk.state): void {
+    const at = this.#memoryAt(state);
+    const { Characteristic } = this.#platform.api.hap;
+    for (const [slot, service] of this.#memoryServices) {
+      service.updateCharacteristic(Characteristic.On, slot === at);
+    }
+  }
+
+  /**
+   * A memory switch set from the Home app.
+   *
+   * On sends the desk there. Off is only meaningful while the desk is still on
+   * its way, where it means "not there after all" and stops it, the same as
+   * the handset would; once it has arrived there is no opposite of being at a
+   * height, so the switch goes back to showing where the desk is.
+   */
+  #setMemorySwitch(slot: number, on: boolean): void {
+    if (on) {
+      this.#setMemory(slot);
+    } else if (this.#memoryGoing === slot) {
+      this.#memoryGoing = null;
+      this.#desk.stop();
+    }
+    // Not from inside the set handler: HAP takes the written value as the
+    // state once the handler returns, which would undo a correction made here.
+    setImmediate(() => this.#publishMemories());
   }
 
   #lockState(): boolean {
@@ -974,6 +1045,8 @@ export class EliotAccessory {
 
   #setMemory(slot: number): void {
     this.#snapTo = null;
+    this.#memoryGoing = slot;
+    const press = ++this.#memoryPress;
     void this.#desk
       .moveToMemory(slot)
       .then((outcome) => {
@@ -983,6 +1056,15 @@ export class EliotAccessory {
       })
       .catch((error: unknown) => {
         this.#platform.log.error(`${this.#config.name}: memory ${slot} failed: ${String(error)}`);
+      })
+      .finally(() => {
+        // Only this press's own move: a newer press — of this switch or
+        // another — has taken over the claim, and its move ends this one as
+        // superseded.
+        if (press === this.#memoryPress) {
+          this.#memoryGoing = null;
+        }
+        this.#publishMemories();
       });
   }
 
@@ -993,6 +1075,9 @@ export class EliotAccessory {
     if (this.#snapTo !== null && state.target !== this.#snapTo) {
       this.#snapTo = null;
     }
+    // Before the check below: a desk that has gone away is at no memory, and
+    // the switches should say so rather than keep their last answer.
+    this.#publishMemories(state);
     if (!state.connected || !state.ready || state.position === null) {
       return;
     }
@@ -1004,12 +1089,6 @@ export class EliotAccessory {
 
     if (this.#lockService && state.locked !== null) {
       this.#lockService.updateCharacteristic(Characteristic.On, state.locked);
-    }
-
-    // Momentary: they are never on except for the moment after a press, which
-    // #release already takes care of.
-    for (const service of this.#memoryServices.values()) {
-      service.updateCharacteristic(Characteristic.On, false);
     }
   }
 }

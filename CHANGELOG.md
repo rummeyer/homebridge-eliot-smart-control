@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Memory switches show where the desk is.** A switch is on while the desk
+  sits within 12 mm of its position, whether it was sent there from the Home
+  app, the handset's memory key or the slider. Switched on in the Home app it
+  stays on rather than springing back, and goes off again if the move is called
+  off before it arrives. Switching it off on the way stops the desk.
+
 ## [1.10.1] — 2026-09-24
 
 ### Changed
