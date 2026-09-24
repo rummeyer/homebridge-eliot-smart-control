@@ -16,7 +16,7 @@ import { createBluetooth } from 'node-ble';
 import type { Adapter, Device, GattCharacteristic } from 'node-ble';
 
 import { describeError } from '../errors.ts';
-import { FrameReader, encode } from './protocol.ts';
+import { FrameReader, describeFrame, encode } from './protocol.ts';
 import type { Frame } from './protocol.ts';
 import { OperationQueue } from './queue.ts';
 
@@ -43,6 +43,15 @@ export const CHAR_NOTIFY = '0000fe62-0000-1000-8000-00805f9b34fb';
  * with rather than by what is polite to the dongle.
  */
 const RECONNECT_BACKOFF_MS = [2_000, 5_000, 15_000, 30_000];
+
+/**
+ * Log every frame in both directions, readably. Off unless `ELIOT_TRACE=1`.
+ *
+ * The idle poll alone is six frames every half minute, all saying what the
+ * last six said, which buried everything else in the Homebridge debug log.
+ * The trace is for working on the protocol, where the tools set it anyway.
+ */
+const TRACE = process.env.ELIOT_TRACE === '1';
 
 /** How long to scan for a dongle BlueZ has never seen. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
@@ -132,7 +141,9 @@ export class DeskLink extends EventEmitter {
     await this.#queue.run(async () => {
       try {
         await characteristic.writeValue(frame, { type: this.#writeType });
-        this.#log.debug(`→ ${frame.toString('hex')}`);
+        if (TRACE) {
+          this.#log.debug(describeFrame('out', command, Buffer.from(params)));
+        }
       } catch (error) {
         // A write failing is how a dropped link usually announces itself; the
         // BlueZ disconnect signal can lag by seconds.
@@ -241,14 +252,13 @@ export class DeskLink extends EventEmitter {
 
   #onBytes(chunk: Buffer): void {
     for (const frame of this.#reader.push(chunk)) {
-      // Logged as the mirror of the `→` above. Without it the log shows what
-      // was asked and never what came back, so "the desk did not answer" and
-      // "the answer was not understood" look exactly alike — and the second
-      // is the one that is this plugin's fault.
-      this.#log.debug(
-        `← ${frame.command.toString(16).padStart(2, '0')}` +
-          (frame.params.length > 0 ? ` ${frame.params.toString('hex')}` : ''),
-      );
+      // Traced as the mirror of the `→` above. Without it the trace shows
+      // what was asked and never what came back, so "the desk did not answer"
+      // and "the answer was not understood" look exactly alike — and the
+      // second is the one that is this plugin's fault.
+      if (TRACE) {
+        this.#log.debug(describeFrame('in', frame.command, frame.params));
+      }
       this.emit('frame', frame);
     }
   }

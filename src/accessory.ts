@@ -132,6 +132,8 @@ export class EliotAccessory {
   #timerShown: number | null = null;
   #mover: AutoMover | undefined;
   #autoTimer: NodeJS.Timeout | undefined;
+  /** The last auto-movement status logged, so each is said once. */
+  #autoStatus: string | null = null;
   /** Sitting and standing time, counted while auto movement runs. */
   #stats: PostureStats | undefined;
   #statsSavedAt = Date.now();
@@ -591,17 +593,60 @@ export class EliotAccessory {
     }
   }
 
+  /**
+   * Say in the debug log what auto movement is doing, when that changes.
+   *
+   * Once per change rather than once per tick, so a countdown running quietly
+   * is one line, and a timer that will not start says why.
+   */
+  #logAutoStatus(mover: AutoMover, now: Date, why: string | null): void {
+    let status: string;
+    if (why !== null) {
+      status = why;
+    } else if (!mover.enabled) {
+      status = 'off';
+    } else if (!mover.inWorkingTime(now)) {
+      status = `outside its hours, ${mover.remainingPercent(now)}% of the interval held`;
+    } else if (mover.dueAt === null) {
+      status = 'in its hours, countdown not started yet';
+    } else {
+      const due = new Date(mover.dueAt);
+      const hhmm = `${String(due.getHours()).padStart(2, '0')}:${String(due.getMinutes()).padStart(2, '0')}`;
+      status = `next move at ${hhmm}`;
+    }
+    if (status !== this.#autoStatus) {
+      this.#autoStatus = status;
+      this.#platform.log.debug(`${this.#config.name}: auto movement ${status}`);
+    }
+  }
+
   /** Ask the scheduler what it wants, and do it. */
   async #decide(mover: AutoMover): Promise<void> {
     const state = this.#desk.state;
+    const now = new Date();
     if (!state.connected || !state.ready) {
+      const why = state.connected
+        ? 'waiting for the desk to report'
+        : 'waiting for the desk to connect';
+      this.#logAutoStatus(mover, now, why);
       return;
     }
 
     // A handset move counts as busy: its end restarts the countdown, and a
     // move started under somebody's hand would fight them for the desk.
     const busy = state.moving !== null || this.#desk.handsetMoving;
-    const action = mover.poll(new Date(), state.heightMm, busy);
+    const action = mover.poll(now, state.heightMm, busy);
+    this.#logAutoStatus(
+      mover,
+      now,
+      mover.enabled && mover.inWorkingTime(now) && mover.dueAt === null
+        ? busy
+          ? `waiting: the desk is ${state.moving !== null ? 'moving' : 'being driven from the handset'}`
+          : state.heightMm === null
+            ? 'waiting for a height'
+            : null
+        : null,
+    );
     if (action.kind === 'none') {
       return;
     }

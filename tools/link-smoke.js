@@ -2,10 +2,11 @@
 /**
  * Smoke test for the real transport, against a real desk.
  *
- *   npm run build && node tools/link-smoke.js <MAC>
+ *   npm run build && ELIOT_TRACE=1 node tools/link-smoke.js <MAC>
  *
  * Connects through DeskLink, asks the four read-only questions and prints what
- * comes back. Nothing here moves the desk.
+ * comes back. Nothing here moves the desk. `ELIOT_TRACE=1` adds every frame
+ * in both directions; without it DeskLink keeps them to itself.
  */
 import { DeskLink } from '../dist/eliot/link.js';
 import { Cmd, Report, readHeight } from '../dist/eliot/protocol.js';

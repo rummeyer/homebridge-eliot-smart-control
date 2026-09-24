@@ -280,3 +280,36 @@ export function heightParams(heightMm: number): number[] {
 export function readHeight(params: Buffer, offset = 0): number {
   return params.readUInt16BE(offset);
 }
+
+/** Reports whose params are one height, shown in millimetres when traced. */
+const HEIGHT_REPORTS = new Set<number>([
+  Report.HEIGHT,
+  Report.LIMIT_MAX,
+  Report.LIMIT_MIN,
+  Report.POSITION_1,
+  Report.POSITION_2,
+  Report.POSITION_3,
+  Report.POSITION_4,
+]);
+
+/**
+ * One frame as a person would want to read it: `→ SETTINGS`,
+ * `← HEIGHT 839 mm`, `← 0x23 01`.
+ *
+ * Only for the frame trace. Names come from the tables above, which reuse
+ * several codes between the two directions — `0x07` is `SETTINGS` going out
+ * and `RANGE` coming back — so the direction decides which table is asked.
+ */
+export function describeFrame(direction: 'out' | 'in', command: number, params: Buffer): string {
+  const table: Record<string, number> = direction === 'out' ? Cmd : Report;
+  const name =
+    Object.keys(table).find((key) => table[key] === command) ??
+    `0x${command.toString(16).padStart(2, '0')}`;
+  let detail = params.length > 0 ? ` ${params.toString('hex')}` : '';
+  if (direction === 'in' && HEIGHT_REPORTS.has(command) && params.length >= 2) {
+    detail = ` ${readHeight(params)} mm`;
+  } else if (direction === 'out' && command === Cmd.GOTO_HEIGHT && params.length >= 2) {
+    detail = ` ${readHeight(params)} mm`;
+  }
+  return `${direction === 'out' ? '→' : '←'} ${name}${detail}`;
+}
