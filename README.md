@@ -103,6 +103,7 @@ dongle for five seconds.
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
 | **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
 | **Ask again each day** | off | Switch auto movement off at the end of each day, so it only runs on days you turn it on |
+| **At the end of the day** | do nothing | Move to standing or sitting height when the day's last window closes |
 
 Or by hand, in `config.json`:
 
@@ -168,6 +169,28 @@ standing instruction, which is right for a desk used the same way every day and
 wrong for one that is not: a week away, and it has been cycling an empty room
 for five days. The day is remembered rather than timed, so a restart at 23:59
 does not hand it a fresh one.
+
+**At the end of the day** moves the desk once when the day's last window
+closes — to standing height, so the next morning starts on your feet, or to
+sitting height, to have it out of the way. Only with auto movement on and only
+on the configured days; not at a gap between windows, like lunch. If the desk
+is out of reach at the close, the move still happens when it comes back within
+a quarter of an hour, and not after that. A desk already there stays put.
+
+### Sitting and standing time
+
+While auto movement is on and inside its hours, the plugin counts how long the
+desk stood at sitting height and how long at standing height. Outside those
+hours it counts nothing: a desk left up overnight is not somebody standing
+overnight. Anything halfway between the configured sitting and standing
+heights or above counts as standing.
+
+The totals appear at the top of the plugin's settings page in the Homebridge UI
+— today, and the last 7, 30 and 100 days once the record reaches back that far
+— and not in the Home app, which has no sensor for a length of time. They are
+kept per day for 100 days, in
+`eliot-stats-<address>.json` in the Homebridge storage directory, and written
+every five minutes, so the page can trail the desk by that much.
 
 ## When the desk stops by itself
 

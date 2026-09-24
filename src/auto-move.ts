@@ -36,6 +36,14 @@ export interface AutoMoveOptions {
    * not — a week away and it has been cycling an empty room for five days.
    */
   switchOffDaily: boolean;
+  /**
+   * Where to leave the desk when the day's last window closes, if anywhere.
+   *
+   * So the desk is where its owner wants it the next morning — standing, to
+   * start the day on their feet, or sitting, out of the way — without a last
+   * trip to the handset.
+   */
+  endOfDay: 'standing' | 'sitting' | 'nothing';
 }
 
 /**
@@ -54,6 +62,18 @@ export type AutoMoveAction =
   | { kind: 'move'; heightMm: number; to: 'sitting' | 'standing' };
 
 const MINUTE = 60_000;
+
+/**
+ * How long after the last window closes the end-of-day move may still happen.
+ *
+ * The desk may be out of reach at the moment the window closes, and a move a
+ * few minutes late is still the one that was asked for. A move at eight in the
+ * evening, when the dongle comes back after an outage, is not.
+ */
+const END_OF_DAY_GRACE_MS = 15 * MINUTE;
+
+/** A desk this close to the end-of-day height is already there. */
+const END_OF_DAY_TOLERANCE_MM = 10;
 
 /** A local calendar day, as `2026-09-21`. Local, because the windows are. */
 function dayKey(when: Date): string {
@@ -102,6 +122,8 @@ export class AutoMover {
   #held: { ms: number; day: string } | null = null;
   /** Whether the warning for the currently scheduled move has been raised. */
   #warned = false;
+  /** The day the end-of-day move was made or found unnecessary. */
+  #endOfDayDone: string | null = null;
   /** Whether the owner has switched this on. Off until told otherwise. */
   #enabled = false;
   /**
@@ -334,7 +356,11 @@ export class AutoMover {
         this.#held = { ms: Math.max(this.#dueAt - closed, 0), day: dayKey(now) };
       }
       this.#dueAt = null;
-      return this.#withdraw();
+      const withdrawn = this.#withdraw();
+      if (withdrawn.kind !== 'none') {
+        return withdrawn;
+      }
+      return this.#endOfDay(now, heightMm, busy);
     }
 
     if (heightMm === null || busy) {
@@ -372,6 +398,43 @@ export class AutoMover {
     }
 
     return { kind: 'none' };
+  }
+
+  /**
+   * The one move after the day's last window, if one is configured.
+   *
+   * Only on a working day, only with auto movement on, only once, and only
+   * shortly after the last window closes — not after lunch, which is a gap
+   * between windows, and not hours later when the desk comes back into reach.
+   * A desk already at the height is left alone.
+   */
+  #endOfDay(now: Date, heightMm: number | null, busy: boolean): AutoMoveAction {
+    const want = this.#opts.endOfDay;
+    const today = dayKey(now);
+    if (
+      want === 'nothing' ||
+      !this.#enabled ||
+      this.#endOfDayDone === today ||
+      !this.#opts.days.includes(now.getDay()) ||
+      this.#windows.length === 0
+    ) {
+      return { kind: 'none' };
+    }
+    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
+    const end = midnight + Math.max(...this.#windows.map((w) => w.to)) * MINUTE;
+    const ms = now.getTime();
+    if (ms < end || ms >= end + END_OF_DAY_GRACE_MS) {
+      return { kind: 'none' };
+    }
+    if (heightMm === null || busy) {
+      return { kind: 'none' };
+    }
+    this.#endOfDayDone = today;
+    const target = want === 'standing' ? this.#opts.standingMm : this.#opts.sittingMm;
+    if (Math.abs(heightMm - target) <= END_OF_DAY_TOLERANCE_MM) {
+      return { kind: 'none' };
+    }
+    return { kind: 'move', heightMm: target, to: want };
   }
 
   /** Clear a standing warning, and say so only if there was one. */

@@ -12,11 +12,13 @@ import type { CharacteristicValue, PlatformAccessory, Service } from 'homebridge
 import { AutoMover } from './auto-move.ts';
 import { DAY_NAMES, DEFAULT_AUTO_MOVE, validateAutoMove } from './config.ts';
 import type { DeskConfig } from './config.ts';
+import { describeError } from './errors.ts';
 import { Desk } from './eliot/desk.ts';
 import type { DeskState, EcoMode, MoveOutcome, Transport } from './eliot/desk.ts';
 import { DeskLink } from './eliot/link.ts';
 import { heightToPercent } from './eliot/move.ts';
 import type { EliotPlatform } from './platform.ts';
+import { PostureStats, statsPath } from './stats.ts';
 
 /**
  * How far off target a finished move may be and still report as arrived.
@@ -38,6 +40,9 @@ const SNAP_TOLERANCE_PERCENT = 3;
  * notice. It costs nothing — the poll does not touch the desk.
  */
 const AUTO_TICK_MS = 30_000;
+
+/** How often counted sitting and standing time is written to disk. */
+const STATS_SAVE_MS = 5 * 60_000;
 
 /**
  * How long to let slider targets settle before acting on one.
@@ -127,6 +132,9 @@ export class EliotAccessory {
   #timerShown: number | null = null;
   #mover: AutoMover | undefined;
   #autoTimer: NodeJS.Timeout | undefined;
+  /** Sitting and standing time, counted while auto movement runs. */
+  #stats: PostureStats | undefined;
+  #statsSavedAt = Date.now();
   /** Heights already complained about, so the log says it once and not hourly. */
   readonly #clamped = new Set<string>();
   /** The last slider target, and the timer waiting to see if more follow. */
@@ -274,6 +282,7 @@ export class EliotAccessory {
       windows: auto.windows,
       days: auto.days.map((d) => DAY_NAMES.indexOf(d)).filter((d) => d >= 0),
       switchOffDaily: auto.switchOffDaily,
+      endOfDay: auto.endOfDay,
     });
     // Restored, not switched on: the day it was switched on for comes back with
     // it, so a restart in the evening does not hand it a fresh day.
@@ -354,8 +363,53 @@ export class EliotAccessory {
       this.#platform.log.debug(`${this.#config.name}: moved by hand, auto-move timer restarted`);
     });
 
-    this.#autoTimer = setInterval(() => void this.#autoTick(), AUTO_TICK_MS);
+    // Beside the mover and on its clock, because it counts only when the mover
+    // would act. Without a storage path — only in tests — there is nowhere to
+    // keep it.
+    const storage = this.#platform.api.user?.storagePath();
+    if (storage) {
+      this.#stats = new PostureStats(
+        statsPath(storage, config.mac),
+        config.name,
+        config.mac.toUpperCase(),
+        Math.round((auto.sittingMm + auto.standingMm) / 2),
+      );
+    }
+
+    this.#autoTimer = setInterval(() => {
+      this.#sampleStats();
+      void this.#autoTick();
+    }, AUTO_TICK_MS);
     this.#autoTimer.unref();
+  }
+
+  /** Count the last half minute as sitting or standing, if it counts. */
+  #sampleStats(): void {
+    const stats = this.#stats;
+    const mover = this.#mover;
+    if (!stats || !mover) {
+      return;
+    }
+    const now = new Date();
+    const state = this.#desk.state;
+    stats.sample(now.getTime(), {
+      counting: mover.enabled && mover.inWorkingTime(now),
+      heightMm: state.connected && state.ready ? state.heightMm : null,
+    });
+    if (now.getTime() - this.#statsSavedAt >= STATS_SAVE_MS) {
+      this.#saveStats(now);
+    }
+  }
+
+  #saveStats(now: Date = new Date()): void {
+    this.#statsSavedAt = now.getTime();
+    try {
+      this.#stats?.save(now);
+    } catch (error) {
+      this.#platform.log.warn(
+        `${this.#config.name}: could not save sitting and standing time: ${describeError(error)}`,
+      );
+    }
   }
 
   #setAutoMove(on: boolean): void {
@@ -623,6 +677,8 @@ export class EliotAccessory {
       clearInterval(this.#autoTimer);
       this.#autoTimer = undefined;
     }
+    this.#sampleStats();
+    this.#saveStats();
     await this.#desk.close();
   }
 

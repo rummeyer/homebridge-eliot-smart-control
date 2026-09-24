@@ -190,6 +190,17 @@
                   "default": false,
                   "description": "Switches <b>Auto Movement</b> off again at the end of each day, so it only runs on days you turn it on. Off means the switch stays on until you turn it off."
                 },
+                "endOfDay": {
+                  "title": "At the end of the day",
+                  "type": "string",
+                  "default": "nothing",
+                  "oneOf": [
+                    { "title": "Do nothing", "enum": ["nothing"] },
+                    { "title": "Move to standing height", "enum": ["standing"] },
+                    { "title": "Move to sitting height", "enum": ["sitting"] }
+                  ],
+                  "description": "When the day's last window closes and Auto Movement is on."
+                },
                 "timerSlider": {
                   "title": "Timer slider",
                   "type": "boolean",
@@ -233,6 +244,7 @@
             "desks[].autoMove.warnMinutes",
             "desks[].autoMove.timerSlider",
             "desks[].autoMove.switchOffDaily",
+            "desks[].autoMove.endOfDay",
             {
               "key": "desks[].autoMove.windows",
               "type": "array",

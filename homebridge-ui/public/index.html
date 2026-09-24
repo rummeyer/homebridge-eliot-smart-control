@@ -6,7 +6,9 @@
 
   The scan panel sits above the ordinary form rather than replacing it: every
   other setting is fine as a plain field, and only the address is hard to come
-  by.
+  by. The statistics come last, as close to the form as this page reaches: the
+  host draws the form itself, below this page, and nothing here can go inside
+  it.
 -->
 <style>
   .eliot-hidden  { display: none; }
@@ -21,22 +23,21 @@
   .eliot-badge   { font-size: .7rem; padding: .15rem .4rem; border-radius: .25rem;
                    background: rgba(128,128,128,.2); white-space: nowrap; }
   .eliot-yes     { background: rgba(46,158,91,.25); }
+  .eliot-stats   { width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
+  .eliot-stats th, .eliot-stats td { padding: .25rem .5rem .25rem 0; }
+  .eliot-stats th:not(:first-child), .eliot-stats td:not(:first-child) { text-align: right; }
 </style>
 
 <div class="card mb-3">
   <div class="card-body">
     <h5 class="card-title">Find your desk</h5>
     <p class="card-text text-muted small mb-3">
-      The Smart Dongle does not announce itself usefully. It advertises under whatever
-      name the desk was given in the Eliot app, carries no manufacturer name, and many
-      units have no address printed on them. This looks for the Bluetooth service the
-      desk actually speaks, so a confirmed result is the right device rather than a good
-      guess &mdash; whatever it happens to be called.
+      Finds the Smart Dongle by the Bluetooth service it speaks, whatever it is called.
     </p>
 
     <div class="d-flex gap-2 align-items-center">
       <button type="button" class="btn btn-primary" id="eliot-scan">Scan for desks</button>
-      <span class="eliot-hint" id="eliot-hint">Takes about 12 seconds.</span>
+      <span class="eliot-hint" id="eliot-hint"></span>
     </div>
 
     <p class="eliot-msg eliot-hidden" id="eliot-msg"></p>
@@ -46,6 +47,13 @@
 
 <div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
 
+<div class="card mb-3 eliot-hidden" id="eliot-stats-card">
+  <div class="card-body">
+    <h5 class="card-title">Sitting and standing</h5>
+    <div id="eliot-stats"></div>
+  </div>
+</div>
+
 <script>
   (async () => {
     const button  = document.getElementById('eliot-scan');
@@ -54,6 +62,106 @@
     const results = document.getElementById('eliot-results');
 
     await homebridge.showSchemaForm();
+
+    /** "3:05 h" for seconds; minutes are as fine as this is worth reading. */
+    const hours = (seconds) => {
+      const minutes = Math.round(seconds / 60);
+      return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')} h`;
+    };
+    const SPAN_NAMES = { 1: 'Today', 7: 'Last 7 days', 30: 'Last 30 days',
+                         100: 'Last 100 days' };
+
+    /**
+     * Show what the plugin has counted. Hidden until there is something:
+     * a desk without auto movement never has any, and an empty table would
+     * only raise the question of why.
+     */
+    async function showStats() {
+      const card = document.getElementById('eliot-stats-card');
+      const box = document.getElementById('eliot-stats');
+      let desks = [];
+      try {
+        ({ desks } = await homebridge.request('/stats'));
+      } catch {
+        return;
+      }
+      if (!desks.length) {
+        return;
+      }
+      box.innerHTML = '';
+      for (const desk of desks) {
+        if (desks.length > 1) {
+          const title = document.createElement('h6');
+          title.className = 'mt-2';
+          title.textContent = desk.name;
+          box.append(title);
+        }
+        const table = document.createElement('table');
+        table.className = 'eliot-stats';
+        const head = table.createTHead().insertRow();
+        for (const label of ['', 'Sitting', 'Standing', 'Standing share']) {
+          const th = document.createElement('th');
+          th.textContent = label;
+          head.append(th);
+        }
+        const body = table.createTBody();
+        for (const span of desk.spans) {
+          const row = body.insertRow();
+          const total = span.sitting + span.standing;
+          const share = total > 0 ? `${Math.round((span.standing / total) * 100)} %` : '–';
+          for (const text of [SPAN_NAMES[span.days] ?? `Last ${span.days} days`,
+                              hours(span.sitting), hours(span.standing), share]) {
+            row.insertCell().textContent = text;
+          }
+        }
+        const note = document.createElement('p');
+        note.className = 'eliot-hint mt-2 mb-0';
+        note.textContent =
+          `Counted only while Auto Movement is on and inside its hours. ` +
+          `Standing is ${desk.thresholdMm} mm and up.`;
+        box.append(table, note, resetButton(desk));
+      }
+      card.classList.remove('eliot-hidden');
+    }
+
+    /**
+     * A button that deletes a desk's statistics, after a second click.
+     *
+     * Asked twice on the button itself rather than with confirm(), which the
+     * host's iframe may not be allowed to show.
+     */
+    function resetButton(desk) {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'btn btn-sm btn-primary mt-2';
+      button.textContent = 'Reset data';
+      let armed = null;
+      button.addEventListener('click', async () => {
+        if (!armed) {
+          button.textContent = 'SURE?';
+          armed = setTimeout(() => {
+            armed = null;
+            button.textContent = 'Reset data';
+          }, 5000);
+          return;
+        }
+        clearTimeout(armed);
+        armed = null;
+        button.disabled = true;
+        try {
+          await homebridge.request('/stats/reset', { mac: desk.mac });
+          homebridge.toast.success('Counting starts again from now.', 'Data reset');
+          document.getElementById('eliot-stats-card').classList.add('eliot-hidden');
+          await showStats();
+        } catch (error) {
+          homebridge.toast.error(error.message || String(error), 'Reset failed');
+          button.disabled = false;
+          button.textContent = 'Reset data';
+        }
+      });
+      return button;
+    }
+    void showStats();
 
     const check = document.getElementById('eliot-check');
 
@@ -226,7 +334,7 @@
         say(error.message || String(error), 'danger');
       } finally {
         homebridge.hideSpinner();
-        hint.textContent = 'Takes about 12 seconds.';
+        hint.textContent = '';
         button.disabled = false;
       }
     });

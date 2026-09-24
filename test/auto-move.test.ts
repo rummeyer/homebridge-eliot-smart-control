@@ -12,6 +12,7 @@ const OPTIONS = {
   // Monday to Friday.
   days: [1, 2, 3, 4, 5],
   switchOffDaily: false,
+  endOfDay: 'nothing' as 'standing' | 'sitting' | 'nothing',
 };
 
 /** A Monday, so the weekday rules apply without saying so every time. */
@@ -374,4 +375,56 @@ test('the timer cannot be dragged while auto movement is off', () => {
 
   mover.expire(at(9));
   assert.equal(mover.dueAt, null, 'and none to run out');
+});
+
+test('at the end of the day it moves once, after the last window only', () => {
+  const mover = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  mover.setEnabled(true, at(9));
+
+  // Lunch is a gap between windows, not the end of the day.
+  assert.equal(mover.poll(at(12, 1), 800, false).kind, 'none');
+
+  const move = mover.poll(at(16, 0), 800, false);
+  assert.deepEqual(move, { kind: 'move', heightMm: 1200, to: 'standing' });
+  assert.equal(mover.poll(at(16, 1), 800, false).kind, 'none', 'once a day');
+});
+
+test('the end-of-day move waits out a busy desk and a missing height', () => {
+  const mover = new AutoMover({ ...OPTIONS, endOfDay: 'sitting' });
+  mover.setEnabled(true, at(9));
+
+  assert.equal(mover.poll(at(16, 0), 1200, true).kind, 'none', 'somebody is driving it');
+  assert.equal(mover.poll(at(16, 1), null, false).kind, 'none', 'not connected yet');
+  assert.equal(mover.poll(at(16, 5), 1200, false).kind, 'move', 'still within the grace');
+});
+
+test('the end-of-day move is not made late, off, on a weekend or where the desk is', () => {
+  const late = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  late.setEnabled(true, at(9));
+  assert.equal(late.poll(at(16, 15), 800, false).kind, 'none', 'a quarter of an hour on is too late');
+
+  const off = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  assert.equal(off.poll(at(16, 0), 800, false).kind, 'none', 'auto movement is off');
+
+  const saturday = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  saturday.setEnabled(true, new Date(2026, 8, 26, 9));
+  assert.equal(saturday.poll(new Date(2026, 8, 26, 16, 0), 800, false).kind, 'none');
+
+  const there = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  there.setEnabled(true, at(9));
+  assert.equal(there.poll(at(16, 0), 1195, false).kind, 'none', 'already standing');
+  assert.equal(there.poll(at(16, 1), 800, false).kind, 'none', 'and done for the day');
+
+  const nothing = running();
+  assert.equal(nothing.poll(at(16, 0), 800, false).kind, 'none', 'the default does nothing');
+});
+
+test('a warning still standing at the close is withdrawn before the end-of-day move', () => {
+  const mover = new AutoMover({ ...OPTIONS, endOfDay: 'standing' });
+  // Due at 16:00, the close itself, so the warning is up at 15:55.
+  mover.setEnabled(true, at(15, 30));
+  assert.equal(mover.poll(at(15, 56), 800, false).kind, 'warn');
+
+  assert.equal(mover.poll(at(16, 0), 800, false).kind, 'clear');
+  assert.equal(mover.poll(at(16, 1), 800, false).kind, 'move');
 });

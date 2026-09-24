@@ -105,6 +105,8 @@ export const DAY_NAMES = ['sun', 'mon', 'tue', 'wed', 'thu', 'fri', 'sat'] as co
 
 export type DayName = (typeof DAY_NAMES)[number];
 
+export type EndOfDay = 'standing' | 'sitting' | 'nothing';
+
 export interface AutoMoveConfig {
   /** Sitting height in millimetres. */
   sittingMm?: number;
@@ -133,6 +135,12 @@ export interface AutoMoveConfig {
    */
   switchOffDaily?: boolean;
   /**
+   * Where to move the desk when the day's last window closes: `standing`,
+   * `sitting`, or `nothing`, the default. Only with auto movement on, and only
+   * within a quarter of an hour of the close.
+   */
+  endOfDay?: EndOfDay;
+  /**
    * Show the countdown as a slider in the Home app.
    *
    * A <b>Timer</b> light whose brightness is how much of the interval is left,
@@ -152,6 +160,7 @@ export const DEFAULT_AUTO_MOVE = {
   days: ['mon', 'tue', 'wed', 'thu', 'fri'] as DayName[],
   switchOffDaily: false,
   timerSlider: true,
+  endOfDay: 'nothing' as EndOfDay,
 };
 
 export interface EliotPlatformConfig extends PlatformConfig {
@@ -274,6 +283,9 @@ export function validateAutoMove(auto: AutoMoveConfig | undefined, where: string
 
   if (auto.switchOffDaily !== undefined && typeof auto.switchOffDaily !== 'boolean') {
     problems.push(`${at}.switchOffDaily must be true or false`);
+  }
+  if (auto.endOfDay !== undefined && !['standing', 'sitting', 'nothing'].includes(auto.endOfDay)) {
+    problems.push(`${at}.endOfDay must be "standing", "sitting" or "nothing"`);
   }
   if (auto.timerSlider !== undefined && typeof auto.timerSlider !== 'boolean') {
     problems.push(`${at}.timerSlider must be true or false`);
