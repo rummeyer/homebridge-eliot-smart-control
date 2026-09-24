@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.9.0] — 2026-09-24
+
 ### Changed
 
 - **A changed eco mode, travel speed or anti-collision sensitivity now puts
@@ -532,7 +534,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.2...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.9.0...HEAD
+[1.9.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.0...v1.8.1
 [1.8.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.7.1...v1.8.0
