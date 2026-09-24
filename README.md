@@ -101,7 +101,7 @@ dongle for five seconds.
 | **Name** | required | What the desk is called in the Home app |
 | **Dongle address** | required | Filled in for you by the scan |
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
-| **Memory switches** | on | Offer your stored positions as buttons. Rename them in the Home app |
+| **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
 | **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
@@ -226,8 +226,8 @@ priority and stops; it never drives against you. A brief press pauses the move
 and it carries on, holding the button ends it, and the Home app settles on
 wherever the desk actually is rather than trying again.
 
-**An unset memory gets no button.** If you store a new position on the handset,
-its button appears the next time the plugin connects.
+**An unset memory gets no switch.** If you store a new position on the handset,
+its switch appears the next time the plugin connects.
 
 **Rename the switches in the Home app.** They arrive as *Memory 1*…*Memory 4*
 and the plugin names them only once, when it first creates them, so whatever
