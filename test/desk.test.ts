@@ -287,7 +287,7 @@ test('eco is checked against what the box says after a reconnect, not before', a
   const box = new FakeDesk(880);
   box.velocity = 40;
   box.lowPower = false;
-  const desk = new Desk(box, silent, { idlePollMs: 0, eco: false });
+  const desk = new Desk(box, silent, { idlePollMs: 0, eco: 'off' });
   t.after(() => desk.close());
   await desk.start();
   await tick(1400);

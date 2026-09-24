@@ -163,11 +163,11 @@ export interface DeskOptions {
   /**
    * Eco mode to store on the desk, with the travel speed that goes with it.
    *
-   * `undefined` leaves the desk's own setting alone, which is the default and
-   * the only honest one: writing it stores a change that takes effect at the
-   * next reset, which may be weeks away and nowhere near this decision.
+   * `undefined` leaves the desk's own setting alone, which is the default. A
+   * write that changes anything puts the box into reset mode, which nobody
+   * should meet on a desk they did not configure.
    */
-  eco?: boolean;
+  eco?: EcoMode;
   /**
    * Anti-collision sensitivity to store on the desk: `1` high, `2` medium,
    * `3` low. `undefined` leaves the desk's own setting alone.
@@ -208,7 +208,16 @@ const HANDSET_GAP_MS = 1500;
 const MOTION_ONE_TOUCH = 0;
 
 /**
- * The travel speeds that go with eco on and eco off.
+ * How long after a settings write to wait before asking for reset mode.
+ *
+ * Eco, speed and sensitivity are written independently as their fields
+ * arrive, and the eco pair has a pause between its two writes. Waiting until
+ * they have all gone out means one reset covers them all.
+ */
+const RESET_AFTER_WRITE_MS = 2_000;
+
+/**
+ * The travel speeds that go with eco on, eco off and turbo.
  *
  * 40 is the fastest the app offers. 20 is below the 28 it offers at the slow
  * end, and deliberately: the app's range is not the box's. This desk was found
@@ -217,9 +226,14 @@ const MOTION_ONE_TOUCH = 0;
  * barely slower than no eco mode is not worth a reset to switch on, and 28 was
  * chosen when the only thing known about the slow end was where the app stopped
  * offering.
+ *
+ * 60 is above the app's ceiling and only reachable by typing `turbo` into
+ * config.json. 45, 50 and 55 ran cleanly on this hardware; 255 made the motor
+ * stutter. See docs/PROTOCOL.md.
  */
-const ECO_VELOCITY = 20;
-const FAST_VELOCITY = 40;
+export type EcoMode = 'on' | 'off' | 'turbo';
+
+const ECO_VELOCITY: Record<EcoMode, number> = { on: 20, off: 40, turbo: 60 };
 
 export const DEFAULT_DESK_OPTIONS: DeskOptions = {
   idlePollMs: 30_000,
@@ -314,6 +328,8 @@ export class Desk extends EventEmitter {
   #sensitivityApplied = false;
   /** Whether one-touch mode has been checked on this connection. */
   #motionModeApplied = false;
+  /** Pending request for reset mode after a settings write. */
+  #resetTimer: NodeJS.Timeout | null = null;
 
   constructor(transport: Transport, log: LinkLogger, options: Partial<DeskOptions> = {}) {
     super();
@@ -924,24 +940,25 @@ export class Desk extends EventEmitter {
       return;
     }
 
-    const wantVelocity = eco ? ECO_VELOCITY : FAST_VELOCITY;
-    if (lowPower === eco && velocity === wantVelocity) {
+    const wantLowPower = eco === 'on';
+    const wantVelocity = ECO_VELOCITY[eco];
+    if (lowPower === wantLowPower && velocity === wantVelocity) {
       return;
     }
     if (!this.#transport.connected) {
       return;
     }
 
-    await this.#transport.send(Cmd.LOW_POWER, [eco ? 1 : 0]);
+    await this.#transport.send(Cmd.LOW_POWER, [wantLowPower ? 1 : 0]);
     await delay(300);
     await this.#transport.send(Cmd.VELOCITY, [wantVelocity]);
 
     this.#log.warn(
-      `eco mode ${eco ? 'on' : 'off'} and travel speed ${wantVelocity} stored on the desk ` +
-        `(it had ${lowPower ? 'on' : 'off'} and ${velocity}). The desk keeps running its ` +
-        'old setting until it is reset by hand: drive it to the bottom and hold the down ' +
-        'key until it re-homes. No command can do this.',
+      `eco mode ${wantLowPower ? 'on' : 'off'} and travel speed ${wantVelocity} stored on the desk ` +
+        `(it had ${lowPower ? 'on' : 'off'} and ${velocity}). It takes effect with the ` +
+        'next reset.',
     );
+    this.#requestReset();
   }
 
   /**
@@ -980,9 +997,47 @@ export class Desk extends EventEmitter {
 
     this.#log.warn(
       `anti-collision sensitivity ${name(want)} stored on the desk (it had ` +
-        `${name(sensitivity)}). The desk keeps braking at the old setting until it is ` +
-        'reset by hand: drive it to the bottom and hold the down key until it re-homes.',
+        `${name(sensitivity)}). It takes effect with the next reset.`,
     );
+    this.#requestReset();
+  }
+
+  /**
+   * Put the box into reset mode once the settings writes on this connection
+   * are done.
+   *
+   * A stored value does nothing until the desk is reset, and a reset nobody
+   * asked for may come weeks later, long after anyone remembers the config
+   * change that primed it — and a stored value that was never reset with is
+   * lost if the desk loses power. Reset mode makes the owner finish the job
+   * now: the handset shows RESET and the desk does nothing else until it is
+   * turned left. That is also why this only happens after a write that
+   * differed, never on an ordinary reconnect.
+   */
+  #requestReset(): void {
+    if (this.#resetTimer) {
+      clearTimeout(this.#resetTimer);
+    }
+    this.#resetTimer = setTimeout(() => {
+      this.#resetTimer = null;
+      if (!this.#transport.connected) {
+        return;
+      }
+      this.#transport.send(Cmd.RESET).then(
+        () =>
+          this.#log.warn(
+            'the desk is in reset mode so the new settings take effect: turn the handset ' +
+              'left and it drives to the bottom, re-homes and comes back up. It does ' +
+              'nothing else until then.',
+          ),
+        (err: unknown) =>
+          this.#log.warn(
+            `could not put the desk into reset mode (${String(err)}). The new settings ` +
+              'take effect at its next reset by hand.',
+          ),
+      );
+    }, RESET_AFTER_WRITE_MS);
+    this.#resetTimer.unref();
   }
 
   /**
@@ -1133,6 +1188,10 @@ export class Desk extends EventEmitter {
     this.#ecoApplied = false;
     this.#sensitivityApplied = false;
     this.#motionModeApplied = false;
+    if (this.#resetTimer) {
+      clearTimeout(this.#resetTimer);
+      this.#resetTimer = null;
+    }
     this.#locked = null;
     this.#endMove('disconnected');
     this.#endNative('disconnected');

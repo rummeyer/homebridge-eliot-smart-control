@@ -63,11 +63,23 @@ export interface DeskConfig {
    * Neither `on` nor `off` takes effect when written. The control box stores
    * the pair and goes on running whatever it was last reset with, so the
    * settings it reports can differ from the speed it is visibly travelling at.
-   * They come into force only when the desk is reset by hand: run it to the
-   * bottom and hold the down key until it re-homes. No command on this port can
-   * do that, and the plugin does not pretend otherwise.
+   * They come into force only with a reset, so after a write the plugin puts the
+   * box into reset mode and the owner finishes it by turning the handset left.
+   *
+   * Ignored while {@link turbo} is on.
    */
   ecoMode?: 'leave' | 'on' | 'off' | boolean;
+  /**
+   * No eco mode, at travel speed 60, in place of whatever {@link ecoMode} says.
+   *
+   * Above anything the app offers, and not in the settings page on purpose: it
+   * has to be typed into config.json by hand. The box accepts any speed up to
+   * 255; 45, 50 and 55 were measured running cleanly at 48, 54 and 60 mm/s, and
+   * 255 made the motor stutter. 60 itself has not been measured. Absent or
+   * false leaves {@link ecoMode} in charge, as before. Takes effect after a
+   * reset, like eco mode.
+   */
+  turbo?: boolean;
   /**
    * The control box's own anti-collision sensitivity. Left alone unless set.
    *
@@ -177,6 +189,9 @@ export function validateDeskConfig(desk: Partial<DeskConfig>, index: number): st
     !['leave', 'on', 'off'].includes(desk.ecoMode)
   ) {
     problems.push(`${where}.ecoMode must be "leave", "on" or "off"`);
+  }
+  if (desk.turbo !== undefined && typeof desk.turbo !== 'boolean') {
+    problems.push(`${where}.turbo must be true or false`);
   }
   if (
     desk.collisionSensitivity !== undefined &&

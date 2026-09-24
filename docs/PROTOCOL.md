@@ -442,20 +442,22 @@ polls nothing while the desk moves:
 | 45 | **48.1 mm/s** | — |
 | 50 | **53.5 mm/s** | 44.4 mm/s |
 | 55 | **60.0 mm/s** | 48.2 mm/s |
+| 60 | **62.6 mm/s** | 50.4 mm/s |
 
-All with `LOW_POWER 0`, all landing within 1 mm of the target, and all four
-resets and moves sounding normal. Speed follows the value closely — about
-1.2 mm/s per step — so 55 is some 40 % faster than anything the app allows.
+All with `LOW_POWER 0` and all landing within 1 mm of the target. The rows up
+to 55 are from 23.09.2026, with all four resets and moves sounding normal; 60
+was added on 24.09.2026, one reset and one run. Speed follows the value closely — about
+1.2 mm/s per step — so 55 is some 40 % faster than anything the app allows. 55 → 60 gained only
+2.6 mm/s, but from one run each that is not evidence of a ceiling.
 The 40 row agrees with the 42.4 mm/s measured on 21.09.2026 with a different
 tool. One run per value; the individual steps (5.8, 5.4, 6.5 mm/s) are not
 worth reading into. Where between 55 and 255 the trouble starts was not looked
 for.
 
-**The desk was put back to 40 and testing stopped there.** That is the app's
+**The desk was put back to 40 after each session, and testing stopped at 60.** That is the app's
 ceiling and the one the manufacturer stands behind; running the motor above it
-is the desk equivalent of derestricting a scooter. This plugin only ever writes
-`20` or `40` (`ECO_VELOCITY` and `FAST_VELOCITY` in `src/eliot/desk.ts`) and
-should stay that way.
+is the desk equivalent of derestricting a scooter. The settings page offers
+`20` or `40` (`ECO_VELOCITY` in `src/eliot/desk.ts`).
 
 ### `SENSITIVITY` is the box's own brake, and it takes a write
 

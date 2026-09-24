@@ -103,6 +103,16 @@ export const Cmd = {
   MOVE_4: 0x28,
   /** Poll message; wakes a control box that has gone quiet. */
   WAKE: 0x29,
+  /**
+   * Put the control box into reset mode. Does not move the desk.
+   *
+   * The handset then shows RESET with a circle, and nothing happens until the
+   * owner turns the handset left: the desk drives to its bottom, finds its zero
+   * and comes back up to the soft minimum. That reset is what makes stored
+   * speed, eco and sensitivity values live. Until it is done the box answers
+   * no memory key — pulling the plug ends the mode.
+   */
+  RESET: 0x91,
 } as const;
 
 /** Frames the control box sends back. */

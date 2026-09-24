@@ -13,7 +13,7 @@ import { AutoMover } from './auto-move.ts';
 import { DAY_NAMES, DEFAULT_AUTO_MOVE, validateAutoMove } from './config.ts';
 import type { DeskConfig } from './config.ts';
 import { Desk } from './eliot/desk.ts';
-import type { DeskState, MoveOutcome, Transport } from './eliot/desk.ts';
+import type { DeskState, EcoMode, MoveOutcome, Transport } from './eliot/desk.ts';
 import { DeskLink } from './eliot/link.ts';
 import { heightToPercent } from './eliot/move.ts';
 import type { EliotPlatform } from './platform.ts';
@@ -60,21 +60,22 @@ const MEMORY_SLOTS = [1, 2, 3, 4];
 const RELEASE_MS = 1_000;
 
 /**
- * The configured eco mode as a boolean, or undefined for "leave it alone".
+ * The configured eco mode, or undefined for "leave it alone".
  *
- * Booleans are the 1.2.0 spelling and still mean what they meant; anything
- * unrecognised is treated as "leave alone", which is the option that changes
- * nothing on somebody's desk.
+ * `turbo: true` overrides `ecoMode` entirely. Otherwise booleans are the 1.2.0
+ * spelling and still mean what they meant; anything unrecognised is treated as
+ * "leave alone", which is the option that changes nothing on somebody's desk.
  */
-function wantsEco(setting: DeskConfig['ecoMode']): boolean | undefined {
-  if (typeof setting === 'boolean') {
-    return setting;
+function wantsEco(config: DeskConfig): EcoMode | undefined {
+  if (config.turbo === true) {
+    return 'turbo';
   }
-  if (setting === 'on') {
-    return true;
+  const setting = config.ecoMode;
+  if (setting === true || setting === 'on') {
+    return 'on';
   }
-  if (setting === 'off') {
-    return false;
+  if (setting === false || setting === 'off') {
+    return 'off';
   }
   return undefined;
 }
@@ -153,7 +154,7 @@ export class EliotAccessory {
     const link = transport ?? new DeskLink(config.mac, platform.log);
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
-      eco: wantsEco(config.ecoMode),
+      eco: wantsEco(config),
       sensitivity: wantsSensitivity(config.collisionSensitivity),
     });
 

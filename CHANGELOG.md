@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **A changed eco mode, travel speed or anti-collision sensitivity now puts
+  the desk into reset mode.** The box stores a new setting at once but runs
+  the old one until it is reset, and loses an unreset value when it loses
+  power — so a config change used to go live weeks later at some unrelated
+  reset, or not at all. After a write the plugin sends `0x91`; the handset
+  shows RESET, and turning it left finishes the job. Nothing is sent when the
+  desk already holds what is configured.
+
 ## [1.8.2] — 2026-09-23
 
 ### Added

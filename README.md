@@ -100,7 +100,7 @@ dongle for five seconds.
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
 | **Memory switches** | on | Offer your stored positions as buttons. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
-| **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect only after the desk is reset by hand |
+| **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
 | **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
 | **Ask again each day** | off | Switch auto movement off at the end of each day, so it only runs on days you turn it on |
 
@@ -182,9 +182,8 @@ reason look identical.
 to keep whatever the desk came with, which is the default. It is written to the
 control box when it differs from what the box is holding, once per connection.
 
-**It takes effect after the desk is reset by hand** — run it to the bottom and
-hold the down key until it re-homes. Until then the desk keeps its old setting,
-the same way travel speed and eco mode do. And the setting belongs to the desk
+**It takes effect after a reset**, the same way travel speed and eco mode do,
+and the plugin puts the desk into reset mode when it writes it — see below. And the setting belongs to the desk
 rather than to this plugin, so it stays changed until something changes it
 back.
 
@@ -208,11 +207,15 @@ its button appears the next time the plugin connects.
 and the plugin names them only once, when it first creates them, so whatever
 you rename them to survives restarts.
 
-**Eco mode is stored now and takes effect later.** The control box keeps
-running whatever it was last reset with, so the settings it reports back can
-differ from the speed it is visibly travelling at. A reset by hand — run the
-desk to the bottom and hold the down key until it re-homes — is what makes a
-stored setting live. No command over this connection can do it.
+**A changed eco mode or sensitivity puts the desk into reset mode.** The
+control box stores a new setting at once but keeps running whatever it was last
+reset with, and a value stored without a reset is lost if the desk loses power.
+So when the plugin writes one, it also switches the box to reset mode: the
+handset shows RESET, and the desk ignores everything else — memory keys and the
+Home app included — until you turn the handset left. It then drives to the
+bottom, re-homes and comes back up, and the new setting is live. This happens
+only when a setting actually changed, never on an ordinary reconnect. If the
+desk is stuck in reset mode and you cannot do the reset now, unplug it.
 
 **The idle refresh is only for what happens between moves.** The control box
 streams its height for as long as it is driving itself, so nothing needs asking

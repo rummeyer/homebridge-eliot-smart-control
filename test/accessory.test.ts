@@ -9,6 +9,7 @@
  */
 import assert from 'node:assert/strict';
 import { EventEmitter } from 'node:events';
+import { readFileSync } from 'node:fs';
 import { after, test } from 'node:test';
 import type { TestContext } from 'node:test';
 
@@ -367,6 +368,79 @@ test('a boolean still means what it meant in 1.2.0', async (t) => {
   await tick(400);
 
   assert.ok(transport.sent.includes(Cmd.LOW_POWER), 'true is still eco on');
+});
+
+test('turbo is eco off at 60, whatever ecoMode says', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { ecoMode: 'on', turbo: true } });
+  transport.lowPower = 1;
+  transport.velocity = 20;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.deepEqual(transport.sentParams.get(Cmd.LOW_POWER), [0], 'turbo is not eco');
+  assert.deepEqual(transport.sentParams.get(Cmd.VELOCITY), [60]);
+});
+
+test('turbo false leaves ecoMode in charge', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, { desk: { ecoMode: 'leave', turbo: false } });
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(!transport.sent.includes(Cmd.VELOCITY), 'the desk was left alone');
+});
+
+test('turbo is not in the settings page', () => {
+  const schema = JSON.parse(readFileSync(new URL('../config.schema.json', import.meta.url), 'utf8'));
+  const desk = schema.schema.properties.desks.items.properties;
+  assert.equal(desk.turbo, undefined, 'it has to be typed into config.json by hand');
+});
+
+test('a settings write puts the desk into reset mode, once', async (t) => {
+  const accessory = new FakeAccessory();
+  const { transport } = await start(t, accessory, {
+    desk: { ecoMode: 'on', collisionSensitivity: 'low' },
+  });
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  transport.sensitivity = 2;
+  await transport.send(Cmd.CONNECT);
+  await tick(400);
+
+  assert.ok(transport.sent.includes(Cmd.SENSITIVITY), 'sensitivity was stored');
+  assert.ok(!transport.sent.includes(Cmd.RESET), 'not before the writes are done');
+
+  await tick(2400);
+  assert.equal(
+    transport.sent.filter((c) => c === Cmd.RESET).length,
+    1,
+    'one reset covers eco and sensitivity',
+  );
+});
+
+test('a desk already holding the configuration is not put into reset mode', async (t) => {
+  const accessory = new FakeAccessory();
+  const transport = new FakeTransport();
+  transport.lowPower = 0;
+  transport.velocity = 40;
+  transport.sensitivity = 2;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const handle = new EliotAccessory(
+    platform as any,
+    accessory as any,
+    { ...config, ecoMode: 'off', collisionSensitivity: 'medium' } as any,
+    transport,
+  );
+  t.after(() => handle.stop());
+  await handle.start();
+  await tick(2800);
+
+  assert.ok(!transport.sent.includes(Cmd.LOW_POWER), 'nothing differed');
+
+  assert.ok(!transport.sent.includes(Cmd.RESET), 'a reconnect is not a reason to reset');
 });
 
 test('a desk already holding the configured pair is not written to', async (t) => {
