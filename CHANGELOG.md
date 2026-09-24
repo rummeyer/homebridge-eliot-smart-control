@@ -6,6 +6,17 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.1] — 2026-09-24
+
+### Changed
+
+- **The debug log says what auto movement is doing** — `next move at 13:08`,
+  `outside its hours`, or why the countdown has not started — once each time
+  that changes.
+- **The raw Bluetooth frames are gone from the debug log.** The idle poll
+  alone put six unreadable lines in it every half minute. Set `ELIOT_TRACE=1`
+  to get them back, now spelled out: `→ SETTINGS`, `← HEIGHT 839 mm`.
+
 ## [1.10.0] — 2026-09-24
 
 ### Added
@@ -553,7 +564,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.1...HEAD
+[1.10.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.0...v1.10.1
 [1.10.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.1...v1.8.2
