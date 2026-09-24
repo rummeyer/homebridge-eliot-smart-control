@@ -6,6 +6,25 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.10.0] — 2026-09-24
+
+### Added
+
+- **Sitting and standing time.** While auto movement is on and inside its
+  hours, the plugin counts how long the desk spent below and above the
+  midpoint between its sitting and standing heights, keeps 100 days of daily
+  totals in the Homebridge storage directory, and shows today and the last 7,
+  30 and 100 days on the settings page, each once there is that much record.
+  **Reset data** below the table starts the count again.
+- **At the end of the day** (`autoMove.endOfDay`) moves the desk to standing
+  or sitting height once, when the day's last window closes, if auto movement
+  is on. Off by default.
+
+### Changed
+
+- **A shorter settings page.** The scan explains itself in one line, and the
+  "takes about 12 seconds" hint is gone.
+
 ## [1.9.0] — 2026-09-24
 
 ### Changed
@@ -534,7 +553,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.9.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.10.0...HEAD
+[1.10.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.9.0...v1.10.0
 [1.9.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.2...v1.9.0
 [1.8.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.1...v1.8.2
 [1.8.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.8.0...v1.8.1
