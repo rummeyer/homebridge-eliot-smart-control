@@ -13,6 +13,13 @@
         "default": "Eliot Smart Control",
         "description": "Only the log prefix. Each desk is named separately below."
       },
+      "adapter": {
+        "title": "Bluetooth adapter",
+        "type": "string",
+        "placeholder": "hci0",
+        "pattern": "^\\s*(hci\\d+)?\\s*$",
+        "description": "Leave empty to use the system default adapter. Only needed when the machine has more than one, for example a USB dongle next to the built-in one. <code>hciconfig</code> lists them."
+      },
       "desks": {
         "title": "Desks",
         "type": "array",
@@ -273,6 +280,14 @@
             }
           ]
         }
+      ]
+    },
+    {
+      "type": "fieldset",
+      "title": "Advanced",
+      "expandable": true,
+      "items": [
+        "adapter"
       ]
     }
   ],

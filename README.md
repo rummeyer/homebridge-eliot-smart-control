@@ -110,6 +110,12 @@ dongle for five seconds.
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
 | **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
 
+Under **Advanced**, for all desks at once:
+
+| | | |
+|---|---|---|
+| **Bluetooth adapter** | system default | Which adapter to use, e.g. `hci1`, when the machine has more than one — say a USB dongle with better range next to the built-in one. `hciconfig` lists them. The scan on the settings page uses it too |
+
 Or by hand, in `config.json`:
 
 ```json
@@ -312,7 +318,10 @@ release the connection, and the dongle will not advertise while something holds
 it. Then unplug it for five seconds; it advertises immediately on power-up.
 
 **It connects, then drops.** Check the signal. The settings page shows it beside
-each result and warns when it is weak; anything near -90 dBm comes and goes.
+each result, and the log gives it with every connection — `connected to desk
+E5:…, -66 dBm` — both warning below -85 dBm; anything near -90 dBm comes and
+goes. It is the signal just before connecting: once connected the dongle stops
+advertising and there is nothing further to measure it by.
 Move Homebridge closer, or put a second one near the desk.
 
 **A dongle that stays silent while plugged in and powered is broken.** Obvious

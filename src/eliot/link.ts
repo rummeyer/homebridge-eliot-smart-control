@@ -28,6 +28,30 @@ export const CHAR_WRITE = '0000fe61-0000-1000-8000-00805f9b34fb';
 export const CHAR_NOTIFY = '0000fe62-0000-1000-8000-00805f9b34fb';
 
 /**
+ * The adapter to use: the named one, or the first BlueZ lists.
+ *
+ * node-ble's own "Adapter not found" says neither which name was asked for nor
+ * what there is, and both are what someone with a typo in the config needs.
+ */
+export async function openAdapter(
+  session: ReturnType<typeof createBluetooth>,
+  name?: string,
+): Promise<Adapter> {
+  const wanted = name?.trim();
+  if (!wanted) {
+    return session.bluetooth.defaultAdapter();
+  }
+  const present = await session.bluetooth.adapters();
+  if (!present.includes(wanted)) {
+    throw new Error(
+      `Bluetooth adapter ${wanted} not found — this machine has ` +
+        (present.length > 0 ? present.join(', ') : 'none'),
+    );
+  }
+  return session.bluetooth.getAdapter(wanted);
+}
+
+/**
  * Delays between reconnect attempts; the last value repeats.
  *
  * Attempts thin out rather than hammering a device that cannot be helped, but
@@ -59,6 +83,24 @@ const DISCOVERY_TIMEOUT_MS = 30_000;
 /** Consecutive failures after which the log stops being polite about it. */
 const STUCK_AFTER_ATTEMPTS = 6;
 
+/**
+ * Below this a signal is weak enough to warn about. The same line the scan on
+ * the settings page draws, so the two do not disagree about one desk.
+ */
+export const WEAK_RSSI_DBM = -85;
+
+/**
+ * The signal for a log line: `, -66 dBm`, marked when weak, or nothing.
+ *
+ * Only ever the last advertisement heard before connecting. The dongle stops
+ * advertising once connected, BlueZ then keeps showing that last value
+ * unchanged, and the live reading of the link needs privileges Homebridge does
+ * not have — so there is no average over a connection to report.
+ */
+export function describeSignal(rssi: number | null): string {
+  return rssi === null ? '' : `, ${rssi} dBm${rssi < WEAK_RSSI_DBM ? ' (weak)' : ''}`;
+}
+
 /** Just enough logging for this class not to depend on Homebridge. */
 export interface LinkLogger {
   debug(message: string): void;
@@ -76,6 +118,7 @@ export interface DeskLink {
 export class DeskLink extends EventEmitter {
   readonly #mac: string;
   readonly #log: LinkLogger;
+  readonly #adapterName: string | undefined;
   readonly #queue = new OperationQueue();
   readonly #reader = new FrameReader();
 
@@ -90,12 +133,16 @@ export class DeskLink extends EventEmitter {
   #connected = false;
   #closing = false;
   #attempts = 0;
+  /** Signal of the last advertisement heard, in dBm, for the log. */
+  #rssi: number | null = null;
   #retry: NodeJS.Timeout | null = null;
 
-  constructor(mac: string, log: LinkLogger) {
+  /** @param adapterName BlueZ adapter, e.g. `hci1`; absent means the first one. */
+  constructor(mac: string, log: LinkLogger, adapterName?: string) {
     super();
     this.#mac = mac.toUpperCase();
     this.#log = log;
+    this.#adapterName = adapterName;
   }
 
   get connected(): boolean {
@@ -174,6 +221,8 @@ export class DeskLink extends EventEmitter {
       this.#log.debug(`waiting for ${this.#mac}`);
       const device = await adapter.waitDevice(this.#mac, DISCOVERY_TIMEOUT_MS);
       this.#device = device;
+      // Read now: once connected the dongle no longer advertises.
+      this.#rssi = await readSignal(device);
 
       await device.connect();
       const gatt = await device.gatt();
@@ -198,13 +247,22 @@ export class DeskLink extends EventEmitter {
       this.#notify = notify;
       this.#connected = true;
       this.#attempts = 0;
-      this.#log.info(`connected to desk ${this.#mac}`);
+      this.#log.info(`connected to desk ${this.#mac}${describeSignal(this.#rssi)}`);
+      if (this.#rssi !== null && this.#rssi < WEAK_RSSI_DBM) {
+        this.#log.warn(
+          `signal from ${this.#mac} is weak and the link may keep dropping; ` +
+            'move the Homebridge host or a Bluetooth adapter closer to the desk.',
+        );
+      }
       this.emit('connected');
     } catch (error) {
-      this.#log.debug(`connect attempt ${this.#attempts} failed: ${describeError(error)}`);
+      this.#log.debug(
+        `connect attempt ${this.#attempts} failed${describeSignal(this.#rssi)}: ${describeError(error)}`,
+      );
       if (this.#attempts === STUCK_AFTER_ATTEMPTS) {
+        const heard = this.#rssi === null ? '' : ` It was last heard at ${this.#rssi} dBm.`;
         this.#log.warn(
-          `desk ${this.#mac} has refused ${this.#attempts} connections. ` +
+          `desk ${this.#mac} has refused ${this.#attempts} connections.${heard} ` +
             'If the Eliot app is connected to it, close it — the dongle takes one ' +
             'connection at a time. Otherwise unplug the dongle for a few seconds.',
         );
@@ -243,7 +301,7 @@ export class DeskLink extends EventEmitter {
       this.#onDropped();
     });
 
-    const adapter = await session.bluetooth.defaultAdapter();
+    const adapter = await openAdapter(session, this.#adapterName);
     if (!(await adapter.isPowered())) {
       throw new Error('Bluetooth adapter is powered off — try: bluetoothctl power on');
     }
@@ -316,4 +374,12 @@ export class DeskLink extends EventEmitter {
       this.#adapter = null;
     }
   }
+}
+
+/** The RSSI BlueZ has for a device, or null when it has not heard it. */
+async function readSignal(device: Device): Promise<number | null> {
+  // node-ble types RSSI as a string; BlueZ hands over an int16.
+  const raw = await device.getRSSI().catch(() => null);
+  const rssi = raw === null || raw === undefined ? NaN : Number(raw);
+  return Number.isFinite(rssi) ? rssi : null;
 }

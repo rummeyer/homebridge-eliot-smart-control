@@ -6,6 +6,19 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Bluetooth adapter** under **Advanced** on the settings page, for a machine
+  with more than one — say a USB dongle next to the built-in one. Empty keeps
+  the system default, as before. The scan for desks uses it too, and a name
+  that is not there is logged together with the adapters that are.
+- **Signal strength in the log** with every connection, as in `connected to
+  desk E5:…, -66 dBm`, and a warning below -85 dBm, where the settings page
+  warns too. A desk that keeps refusing connections says when it was last
+  heard, and how loud. It is the reading from just before connecting: the
+  dongle stops advertising once connected and reports no signal of its own, so
+  there is no running average to give.
+
 ## [1.13.0] — 2026-09-25
 
 ### Added

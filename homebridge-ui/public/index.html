@@ -351,7 +351,13 @@
       homebridge.showSpinner();
       say('Looking for desks. Anything already connected to a phone will not appear.', 'muted');
       try {
-        const { desks, others } = await homebridge.request('/scan', { seconds: 12 });
+        // The adapter as the form has it now, saved or not: someone who has
+        // just picked one wants the scan to use it.
+        const [platform] = await homebridge.getPluginConfig();
+        const { desks, others } = await homebridge.request('/scan', {
+          seconds: 12,
+          adapter: platform?.adapter,
+        });
         render(desks, others);
       } catch (error) {
         say(error.message || String(error), 'danger');

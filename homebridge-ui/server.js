@@ -87,6 +87,7 @@ class EliotUiServer extends HomebridgePluginUiServer {
         // has not cached yet would otherwise be invisible, and a list with the
         // right answer missing is worse than a longer one.
         includeUnknown: true,
+        adapter: typeof request?.adapter === 'string' ? request.adapter : undefined,
       });
       return {
         desks: desks.filter((d) => d.confirmed || d.name),

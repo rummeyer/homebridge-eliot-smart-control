@@ -167,6 +167,11 @@ export const DEFAULT_AUTO_MOVE = {
 export interface EliotPlatformConfig extends PlatformConfig {
   /** Homebridge uses this as the log prefix for everything this plugin says. */
   name?: string;
+  /**
+   * BlueZ adapter to use, e.g. `hci1`. Absent or empty means the first one
+   * BlueZ lists, which on a machine with a single adapter is the only choice.
+   */
+  adapter?: string;
   desks?: DeskConfig[];
 }
 

@@ -173,7 +173,7 @@ export class EliotAccessory {
 
     const { Characteristic, Service: HapService } = platform.api.hap;
 
-    const link = transport ?? new DeskLink(config.mac, platform.log);
+    const link = transport ?? new DeskLink(config.mac, platform.log, platform.config.adapter);
     this.#desk = new Desk(link, platform.log, {
       idlePollMs: (config.idlePollSeconds ?? 30) * 1000,
       eco: wantsEco(config),

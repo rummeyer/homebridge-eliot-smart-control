@@ -14,7 +14,7 @@
  */
 import { createBluetooth } from 'node-ble';
 
-import { SERVICE_SERIAL } from './link.ts';
+import { SERVICE_SERIAL, openAdapter } from './link.ts';
 
 export interface FoundDesk {
   /** BLE address, the value that goes in the config. */
@@ -46,6 +46,8 @@ export interface DiscoverOptions {
   scanMs: number;
   /** Report everything found, not only devices that look like a desk. */
   includeUnknown: boolean;
+  /** BlueZ adapter, e.g. `hci1`. Absent or empty means the first one. */
+  adapter?: string;
 }
 
 export const DEFAULT_DISCOVER_OPTIONS: DiscoverOptions = {
@@ -75,11 +77,14 @@ async function property<T>(device: unknown, name: string): Promise<T | null> {
  * stopping a scan it started would make that fail for no reason.
  */
 export async function discoverDesks(options: Partial<DiscoverOptions> = {}): Promise<FoundDesk[]> {
-  const { scanMs, includeUnknown } = { ...DEFAULT_DISCOVER_OPTIONS, ...options };
+  const { scanMs, includeUnknown, adapter: adapterName } = {
+    ...DEFAULT_DISCOVER_OPTIONS,
+    ...options,
+  };
   const session = createBluetooth();
 
   try {
-    const adapter = await session.bluetooth.defaultAdapter();
+    const adapter = await openAdapter(session, adapterName);
     if (!(await adapter.isPowered())) {
       throw new Error('The Bluetooth adapter is powered off. Run: bluetoothctl power on');
     }
