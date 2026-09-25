@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.14.0] — 2026-09-25
+
 ### Added
 
 - **Bluetooth adapter** under **Advanced** on the settings page, for a machine
@@ -630,7 +632,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.13.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...HEAD
+[1.14.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.12.1...v1.13.0
 [1.12.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.12.0...v1.12.1
 [1.12.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.11.0...v1.12.0
