@@ -6,6 +6,22 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **No working hours means any time.** Leave the list empty and auto movement
+  may move the desk at any hour on any day, the countdown carrying on across
+  midnight. The days apply only to working hours, and the settings page hides
+  them, along with the end-of-day move, until there are some. This
+  replaces the built-in 08:00–12:00 and 13:00–16:00, so a config that sets no
+  `windows` now moves at any time: add them back to keep the old hours.
+- **Ask again each day is now Turn off at the end of the day**, and the day
+  ends when the working hours do rather than at midnight — after the
+  end-of-day move, if one is set. Midnight is still the end without working
+  hours, or when it was switched on after they ended. The config key is still
+  `switchOffDaily`.
+- **At the end of the day is now Action at the end of working hours**, which
+  is when it happens. The config key is still `endOfDay`.
+
 ## [1.11.0] — 2026-09-24
 
 ### Changed

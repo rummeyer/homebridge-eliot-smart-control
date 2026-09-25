@@ -302,14 +302,9 @@ export class EliotAccessory {
       switchOffDaily: auto.switchOffDaily,
       endOfDay: auto.endOfDay,
     });
-    // Restored, not switched on: the day it was switched on for comes back with
-    // it, so a restart in the evening does not hand it a fresh day.
-    this.#mover.restore(
-      this.#accessory.context.autoMove === true,
-      typeof this.#accessory.context.autoMoveDay === 'string'
-        ? this.#accessory.context.autoMoveDay
-        : null,
-    );
+    // Restored, not switched on: when it was switched on comes back with it,
+    // so a restart in the evening does not hand it a fresh day.
+    this.#mover.restore(this.#accessory.context.autoMove === true, this.#restoredSince());
 
     // Built before the switch and the sensor, because services are created in
     // the order they should be read: the desk, its lock, how long until it
@@ -444,16 +439,33 @@ export class EliotAccessory {
   }
 
   /**
-   * Store the switch and the day it was switched on for.
+   * Store the switch and when it was switched on.
    *
-   * The day matters as much as the state: without it a restart looks like
-   * somebody switching it on again, and "off for the new day" would last only
-   * until the next time Homebridge came up.
+   * The time matters as much as the state: without it a restart looks like
+   * somebody switching it on again, and "off at the end of the day" would last
+   * only until the next time Homebridge came up.
    */
   #rememberAutoMove(on: boolean): void {
     this.#accessory.context.autoMove = on;
-    this.#accessory.context.autoMoveDay = on ? (this.#mover?.enabledDay ?? null) : null;
+    this.#accessory.context.autoMoveSince = on ? (this.#mover?.enabledAt ?? null) : null;
+    delete this.#accessory.context.autoMoveDay;
     this.#platform.api.updatePlatformAccessories([this.#accessory]);
+  }
+
+  /**
+   * When auto movement was switched on, as the cache has it.
+   *
+   * Up to 1.11 only the day was kept, as `2026-09-21`; its midnight stands in
+   * for the time, as if it had been switched on first thing that morning.
+   */
+  #restoredSince(): number | null {
+    const { autoMoveSince, autoMoveDay } = this.#accessory.context;
+    if (typeof autoMoveSince === 'number') {
+      return autoMoveSince;
+    }
+    const day =
+      typeof autoMoveDay === 'string' ? /^(\d{4})-(\d{2})-(\d{2})$/.exec(autoMoveDay) : null;
+    return day ? new Date(Number(day[1]), Number(day[2]) - 1, Number(day[3])).getTime() : null;
   }
 
   /** Raise or withdraw the warning, without waking HomeKit for no change. */
@@ -679,8 +691,8 @@ export class EliotAccessory {
       return;
     }
     if (action.kind === 'off') {
-      // A new day. The switch in the Home app has to follow, or it would show
-      // as on while nothing happens, which is the worst of both.
+      // The day is over. The switch in the Home app has to follow, or it would
+      // show as on while nothing happens, which is the worst of both.
       this.#autoService?.updateCharacteristic(
         this.#platform.api.hap.Characteristic.On,
         false,
@@ -688,8 +700,8 @@ export class EliotAccessory {
       this.#warn(false);
       this.#rememberAutoMove(false);
       this.#platform.log.info(
-        `${this.#config.name}: auto movement switched off for the new day; ` +
-          'turn it on when you want it',
+        `${this.#config.name}: auto movement switched off at the end of the day; ` +
+          'turn it on when you want it again',
       );
       return;
     }

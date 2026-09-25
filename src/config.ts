@@ -117,7 +117,8 @@ export interface AutoMoveConfig {
   /** Minutes of warning before a move. */
   warnMinutes?: number;
   /**
-   * When it may move, as `"08:00-12:00"`.
+   * When it may move, as `"08:00-12:00"`. None means all day, on the
+   * configured days.
    *
    * Strings rather than a pair of fields per row, because the Homebridge UI
    * renders a list of text boxes and a list of nested objects very differently,
@@ -156,7 +157,7 @@ export const DEFAULT_AUTO_MOVE = {
   standingMm: 1200,
   intervalMinutes: 30,
   warnMinutes: 5,
-  windows: ['08:00-12:00', '13:00-16:00'],
+  windows: [] as string[],
   days: ['mon', 'tue', 'wed', 'thu', 'fri'] as DayName[],
   switchOffDaily: false,
   timerSlider: true,

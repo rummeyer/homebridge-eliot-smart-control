@@ -23,9 +23,9 @@ export interface AutoMoveOptions {
   intervalMinutes: number;
   /** How long before a move to raise the warning. */
   warnMinutes: number;
-  /** `"08:00-12:00"` and friends. */
+  /** `"08:00-12:00"` and friends. None at all means any time, any day. */
   windows: string[];
-  /** Weekdays it runs on, `0` Sunday through `6` Saturday. */
+  /** Weekdays it runs on, `0` Sunday through `6` Saturday. Only with windows. */
   days: number[];
   /**
    * Switch itself off when the day it was switched on for is over.
@@ -34,6 +34,9 @@ export interface AutoMoveOptions {
    * afterwards. Without this the switch is a standing instruction, which is
    * fine for a desk that is used the same way daily and wrong for one that is
    * not — a week away and it has been cycling an empty room for five days.
+   *
+   * The day is over when its last window closes, or at midnight on a day
+   * without one — which, with no windows configured, is every day.
    */
   switchOffDaily: boolean;
   /**
@@ -75,6 +78,11 @@ const END_OF_DAY_GRACE_MS = 15 * MINUTE;
 /** A desk this close to the end-of-day height is already there. */
 const END_OF_DAY_TOLERANCE_MM = 10;
 
+/** Local midnight at the start of the day `when` falls on. */
+function midnightOf(when: Date): number {
+  return new Date(when.getFullYear(), when.getMonth(), when.getDate()).getTime();
+}
+
 /** A local calendar day, as `2026-09-21`. Local, because the windows are. */
 function dayKey(when: Date): string {
   const month = String(when.getMonth() + 1).padStart(2, '0');
@@ -106,6 +114,7 @@ export function parseWindow(text: string): Window | null {
 
 export class AutoMover {
   readonly #opts: AutoMoveOptions;
+  /** The working hours. Empty means there are none: any time is working time. */
   readonly #windows: Window[];
 
   /** When the next move is due, or null when nothing is scheduled. */
@@ -127,20 +136,26 @@ export class AutoMover {
   /** Whether the owner has switched this on. Off until told otherwise. */
   #enabled = false;
   /**
-   * The day it was switched on for, as `2026-09-21`.
+   * When it was switched on, as a time.
    *
-   * A date rather than a timer: a timer set for midnight does not survive a
-   * restart, and a desk whose plugin restarted at 23:59 would go on moving the
-   * next day. Comparing the day it was switched on against the day it is now
-   * gives the same answer however often the plugin stops and starts.
+   * A time rather than a timer: a timer set for the end of the day does not
+   * survive a restart, and a desk whose plugin restarted at 23:59 would go on
+   * moving the next day. Working out when that day ended from the moment it
+   * was switched on gives the same answer however often the plugin stops and
+   * starts.
    */
-  #enabledDay: string | null = null;
+  #enabledAt: number | null = null;
 
   constructor(options: AutoMoveOptions) {
     this.#opts = options;
     this.#windows = options.windows
       .map(parseWindow)
       .filter((w): w is Window => w !== null);
+  }
+
+  /** Whether working hours are configured, or it may move at any time. */
+  get #anyTime(): boolean {
+    return this.#windows.length === 0;
   }
 
   get enabled(): boolean {
@@ -158,7 +173,7 @@ export class AutoMover {
    */
   setEnabled(on: boolean, now: Date = new Date()): void {
     this.#enabled = on;
-    this.#enabledDay = on ? dayKey(now) : null;
+    this.#enabledAt = on ? now.getTime() : null;
     this.#warned = false;
     this.#held = null;
     // Switching on starts the countdown at its full length here rather than
@@ -172,15 +187,15 @@ export class AutoMover {
       on && this.inWorkingTime(now) ? now.getTime() + this.#opts.intervalMinutes * MINUTE : null;
   }
 
-  /** The day it was switched on for, so a restart can carry it across. */
-  get enabledDay(): string | null {
-    return this.#enabledDay;
+  /** When it was switched on, so a restart can carry it across. */
+  get enabledAt(): number | null {
+    return this.#enabledAt;
   }
 
   /** Restore what a previous run had, without treating it as a fresh switch-on. */
-  restore(enabled: boolean, day: string | null): void {
+  restore(enabled: boolean, at: number | null): void {
     this.#enabled = enabled;
-    this.#enabledDay = enabled ? day : null;
+    this.#enabledAt = enabled ? at : null;
   }
 
   /** When the next move is due, for the log and for tests. */
@@ -280,9 +295,14 @@ export class AutoMover {
    *
    * Outside one there is no countdown, and nothing that would start one — a
    * switch-on, a drag of the slider, a nudge on the handset — does. The first
-   * poll inside a window starts it.
+   * poll inside a window starts it. With no windows configured it is always
+   * working time, whatever the day: the days only say which days the windows
+   * apply to.
    */
   inWorkingTime(now: Date = new Date()): boolean {
+    if (this.#anyTime) {
+      return true;
+    }
     if (!this.#opts.days.includes(now.getDay())) {
       return false;
     }
@@ -304,9 +324,53 @@ export class AutoMover {
     if (closed.length === 0) {
       return null;
     }
-    const close = Math.max(...closed);
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    return midnight + close * MINUTE;
+    return midnightOf(now) + Math.max(...closed) * MINUTE;
+  }
+
+  /**
+   * When the working day `day` falls on ends, as a time.
+   *
+   * At its last window's close on a configured day; null on any other day,
+   * and every day when there are no windows — there is no close to speak of.
+   */
+  #closeOn(day: Date): number | null {
+    if (this.#anyTime || !this.#opts.days.includes(day.getDay())) {
+      return null;
+    }
+    return midnightOf(day) + Math.max(...this.#windows.map((w) => w.to)) * MINUTE;
+  }
+
+  /**
+   * When the day it was switched on for is over, for the daily switch-off.
+   *
+   * At the close of that day's working hours if it was switched on before
+   * them, and otherwise at the midnight that ends it: switched on at 17:00,
+   * after the close, it has not had its day yet, and should not lose it on the
+   * next poll.
+   */
+  #dayOverAt(enabledAt: number): number {
+    const day = new Date(enabledAt);
+    const close = this.#closeOn(day);
+    if (close !== null && enabledAt < close) {
+      return close;
+    }
+    return new Date(day.getFullYear(), day.getMonth(), day.getDate() + 1).getTime();
+  }
+
+  /**
+   * Whether the end-of-day move is still owed at `now`.
+   *
+   * The daily switch-off waits for it: turning off at the close would leave
+   * the move that belongs to the close undone.
+   */
+  #endOfDayOwed(now: Date): boolean {
+    const close = this.#closeOn(now);
+    return (
+      this.#opts.endOfDay !== 'nothing' &&
+      close !== null &&
+      this.#endOfDayDone !== dayKey(now) &&
+      now.getTime() < close + END_OF_DAY_GRACE_MS
+    );
   }
 
   /** What is held for today, if anything. */
@@ -338,10 +402,17 @@ export class AutoMover {
   poll(now: Date, heightMm: number | null, busy: boolean): AutoMoveAction {
     const ms = now.getTime();
 
-    // Before anything else: a new day ends it, wherever the countdown had got
-    // to and whether or not this is a working day. Checked on every poll rather
-    // than at a particular hour, so it holds however long the plugin was down.
-    if (this.#enabled && this.#opts.switchOffDaily && this.#enabledDay !== dayKey(now)) {
+    // Before anything else: the end of the day ends it, wherever the countdown
+    // had got to — once the end-of-day move, if one is owed, has been made.
+    // Checked on every poll rather than at a particular hour, so it holds
+    // however long the plugin was down. Without a switch-on time to go by —
+    // restored from a version that did not keep one — the day is over now.
+    if (
+      this.#enabled &&
+      this.#opts.switchOffDaily &&
+      ms >= this.#dayOverAt(this.#enabledAt ?? 0) &&
+      !this.#endOfDayOwed(now)
+    ) {
       this.setEnabled(false, now);
       return { kind: 'off' };
     }
@@ -406,22 +477,17 @@ export class AutoMover {
    * Only on a working day, only with auto movement on, only once, and only
    * shortly after the last window closes — not after lunch, which is a gap
    * between windows, and not hours later when the desk comes back into reach.
-   * A desk already at the height is left alone.
+   * A desk already at the height is left alone. Without working hours the day
+   * never closes, so this never comes: the close would be midnight, and
+   * nobody wants the desk to move at midnight.
    */
   #endOfDay(now: Date, heightMm: number | null, busy: boolean): AutoMoveAction {
     const want = this.#opts.endOfDay;
     const today = dayKey(now);
-    if (
-      want === 'nothing' ||
-      !this.#enabled ||
-      this.#endOfDayDone === today ||
-      !this.#opts.days.includes(now.getDay()) ||
-      this.#windows.length === 0
-    ) {
+    const end = this.#closeOn(now);
+    if (want === 'nothing' || !this.#enabled || this.#endOfDayDone === today || end === null) {
       return { kind: 'none' };
     }
-    const midnight = new Date(now.getFullYear(), now.getMonth(), now.getDate()).getTime();
-    const end = midnight + Math.max(...this.#windows.map((w) => w.to)) * MINUTE;
     const ms = now.getTime();
     if (ms < end || ms >= end + END_OF_DAY_GRACE_MS) {
       return { kind: 'none' };

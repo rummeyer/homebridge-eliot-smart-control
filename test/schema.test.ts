@@ -48,14 +48,10 @@ test('the placeholder address is accepted by the address field', () => {
   assert.match(placeholder, new RegExp(pattern));
 });
 
-test('the default working hours are accepted by the field that holds them', () => {
-  const windows = desk.autoMove.properties.windows;
-  const pattern = new RegExp(windows.items.pattern);
-
-  for (const window of windows.default) {
-    assert.match(window, pattern, 'the UI would refuse its own default');
-    assert.notEqual(parseWindow(window), null, 'and the plugin can read it');
-  }
+test('the example working hours are accepted by the field that holds them', () => {
+  const { pattern, placeholder } = desk.autoMove.properties.windows.items;
+  assert.match(placeholder, new RegExp(pattern), 'the UI would refuse its own example');
+  assert.notEqual(parseWindow(placeholder), null, 'and the plugin can read it');
 });
 
 test('what the settings page offers is what the plugin falls back to', () => {
@@ -64,7 +60,9 @@ test('what the settings page offers is what the plugin falls back to', () => {
   assert.equal(auto.standingMm.default, DEFAULT_AUTO_MOVE.standingMm);
   assert.equal(auto.intervalMinutes.default, DEFAULT_AUTO_MOVE.intervalMinutes);
   assert.equal(auto.warnMinutes.default, DEFAULT_AUTO_MOVE.warnMinutes);
-  assert.deepEqual(auto.windows.default, DEFAULT_AUTO_MOVE.windows);
+  // No default hours on either side: none means all day.
+  assert.equal(auto.windows.default, undefined);
+  assert.deepEqual(DEFAULT_AUTO_MOVE.windows, []);
   assert.deepEqual(auto.days.default, DEFAULT_AUTO_MOVE.days);
 });
 

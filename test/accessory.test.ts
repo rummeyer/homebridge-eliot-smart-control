@@ -628,6 +628,7 @@ test('the auto movement switch is remembered across a restart', async (t) => {
     .getCharacteristic('On')
     .handlers.set?.(true);
   assert.equal(accessory.context.autoMove, true, 'persisted for the next start');
+  assert.equal(typeof accessory.context.autoMoveSince, 'number', 'with when it was switched on');
 
   const restarted = new FakeAccessory();
   restarted.services = accessory.services;
@@ -755,13 +756,13 @@ test('a switch for a memory the desk no longer has is taken away', async (t) => 
 });
 
 /**
- * Working hours that are always open, so a test can run at any hour of any day.
+ * Always working, so a test can run at any hour of any day.
  *
- * The scheduler refuses to move outside its windows, which is right and which
+ * The scheduler refuses to move outside its hours, which is right and which
  * would otherwise make these pass or fail depending on when they were run.
  */
 const ALWAYS = {
-  windows: ['00:00-23:59'],
+  windows: [],
   days: ['mon', 'tue', 'wed', 'thu', 'fri', 'sat', 'sun'],
 };
 

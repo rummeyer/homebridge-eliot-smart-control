@@ -104,9 +104,9 @@ dongle for five seconds.
 | **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
-| **Automatic sit/stand** | off | Move between two heights on a timer, during configured hours |
-| **Ask again each day** | off | Switch auto movement off at the end of each day, so it only runs on days you turn it on |
-| **At the end of the day** | do nothing | Move to standing or sitting height when the day's last window closes |
+| **Automatic sit/stand** | off | Move between two heights on a timer, during your working hours, or at any time if you set none |
+| **Turn off at the end of the day** | off | Switch auto movement off when your working hours end, or at midnight without them, so it only runs on days you turn it on |
+| **Action at the end of working hours** | do nothing | Move to standing or sitting height when the day's last working hours end |
 
 Or by hand, in `config.json`:
 
@@ -130,7 +130,9 @@ until you turn that on — the switch is the feature's on/off, so that turning i
 off is somewhere obvious rather than in a config file.
 
 Once on, inside the hours you have set, the desk alternates between your
-sitting and standing heights. It always heads for whichever of the two it is
+sitting and standing heights. Set no working hours and it may move at any time, on
+any day: the days only go with working hours, and the settings page hides them
+until there are some. The countdown carries on across midnight. It always heads for whichever of the two it is
 further from, so a desk parked halfway still does the right thing.
 
 **A break between two windows pauses the timer.** With 08:00–12:00 and
@@ -166,19 +168,23 @@ you never do it the feature still works, silently.
 Outside the configured hours nothing moves and no warning is raised — a phone
 buzzing at 17:05 about a move that will never happen is worse than silence.
 
-**Ask again each day** turns the switch off at the end of the day, so it means
-"move me today" rather than "move me from now on". Without it the switch is a
-standing instruction, which is right for a desk used the same way every day and
-wrong for one that is not: a week away, and it has been cycling an empty room
-for five days. The day is remembered rather than timed, so a restart at 23:59
-does not hand it a fresh one.
+**Turn off at the end of the day** turns the switch off when the day is over,
+so it means "move me today" rather than "move me from now on". The day is over
+when your working hours end — after the last window, not at lunch — or at
+midnight if you have set none, or if you switched it on after they ended.
+Without it the switch is a standing instruction, which is right for a desk used
+the same way every day and wrong for one that is not: a week away, and it has
+been cycling an empty room for five days. The switch-on time is remembered, so
+a restart does not hand it a fresh day.
 
-**At the end of the day** moves the desk once when the day's last window
-closes — to standing height, so the next morning starts on your feet, or to
-sitting height, to have it out of the way. Only with auto movement on and only
+**Action at the end of working hours** moves the desk once when the day's
+last window closes — to standing height, so the next morning starts on your
+feet, or to sitting height, to have it out of the way. The settings page offers
+it only once there are working hours. Only with auto movement on and only
 on the configured days; not at a gap between windows, like lunch. If the desk
 is out of reach at the close, the move still happens when it comes back within
-a quarter of an hour, and not after that. A desk already there stays put.
+a quarter of an hour, and not after that. A desk already there stays put. With
+**Turn off at the end of the day** as well, the switch goes off after this move.
 
 ### Sitting and standing time
 

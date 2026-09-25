@@ -257,19 +257,52 @@ test('a restart in the evening does not hand it a fresh day', () => {
   // switched on for. Treating that as a switch-on would make "off for the new
   // day" last only until the next time Homebridge came up.
   const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
-  mover.restore(true, '2026-09-21');
+  mover.restore(true, at(15).getTime());
 
-  assert.equal(mover.poll(at(23, 30), 800, false).kind, 'none', 'still Monday');
+  assert.equal(mover.poll(at(15, 30), 800, false).kind, 'none', 'still working hours');
+  assert.equal(mover.poll(at(16), 800, false).kind, 'off', 'and not a minute more');
+});
 
-  const tuesday = new Date(2026, 8, 22, 8, 30, 0);
-  assert.equal(mover.poll(tuesday, 800, false).kind, 'off');
+test('with the daily switch-off, the day ends when its working hours do', () => {
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
+  mover.setEnabled(true, at(9));
+  assert.equal(mover.poll(at(12, 30), 800, false).kind, 'none', 'lunch is not the end');
+  assert.equal(mover.poll(at(15, 59), 800, false).kind, 'none');
+  assert.equal(mover.poll(at(16), 800, false).kind, 'off');
+});
+
+test('switched on after the close, it keeps its day until midnight', () => {
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
+  mover.setEnabled(true, at(17));
+  assert.equal(mover.poll(at(23, 59), 800, false).kind, 'none');
+  assert.equal(mover.poll(new Date(2026, 8, 22, 0, 0), 800, false).kind, 'off');
+});
+
+test('without working hours the daily switch-off comes at midnight', () => {
+  const mover = new AutoMover({ ...OPTIONS, windows: [], switchOffDaily: true });
+  mover.setEnabled(true, at(9));
+  assert.notEqual(mover.poll(at(23, 59), 800, false).kind, 'off', 'still moving at 23:59');
+  assert.equal(mover.poll(new Date(2026, 8, 22, 0, 0), 800, false).kind, 'off');
+});
+
+test('the daily switch-off waits for the end-of-day move', () => {
+  const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true, endOfDay: 'standing' });
+  mover.setEnabled(true, at(9));
+  assert.equal(mover.poll(at(16), 1200, true).kind, 'none', 'busy: the move is still owed');
+  assert.equal(mover.poll(at(16, 1), 800, false).kind, 'move');
+  assert.equal(mover.poll(at(16, 2), 1200, false).kind, 'off', 'then it switches off');
+
+  const unreachable = new AutoMover({ ...OPTIONS, switchOffDaily: true, endOfDay: 'standing' });
+  unreachable.setEnabled(true, at(9));
+  assert.equal(unreachable.poll(at(16, 5), null, false).kind, 'none', 'within the grace');
+  assert.equal(unreachable.poll(at(16, 15), null, false).kind, 'off', 'but not beyond it');
 });
 
 test('switching off by hand forgets the day too', () => {
   const mover = new AutoMover({ ...OPTIONS, switchOffDaily: true });
   mover.setEnabled(true, at(9));
   mover.setEnabled(false, at(10));
-  assert.equal(mover.enabledDay, null);
+  assert.equal(mover.enabledAt, null);
 });
 
 test('the timer reads zero while off, and full the moment it is switched on', () => {
@@ -427,4 +460,41 @@ test('a warning still standing at the close is withdrawn before the end-of-day m
 
   assert.equal(mover.poll(at(16, 0), 800, false).kind, 'clear');
   assert.equal(mover.poll(at(16, 1), 800, false).kind, 'move');
+});
+
+test('without working hours it runs all day, and on across midnight', () => {
+  const mover = new AutoMover({ ...OPTIONS, windows: [] });
+  mover.setEnabled(true, at(3));
+  assert.ok(mover.inWorkingTime(at(3)), 'three in the morning is working time');
+  assert.ok(mover.inWorkingTime(at(23, 59)));
+  assert.ok(mover.dueAt !== null, 'so switching on starts the countdown');
+
+  // Due at 00:10 on Tuesday: midnight is not a break, it just keeps going.
+  const late = new AutoMover({ ...OPTIONS, windows: [] });
+  late.setEnabled(true, at(23, 40));
+  const tuesday = (hh: number, mm = 0) => new Date(2026, 8, 22, hh, mm, 0);
+  assert.equal(late.poll(tuesday(0, 5), 800, false).kind, 'warn');
+  assert.deepEqual(late.poll(tuesday(0, 10), 800, false), {
+    kind: 'move',
+    heightMm: 1200,
+    to: 'standing',
+  });
+});
+
+test('without working hours the days do not count, and the day never closes', () => {
+  const mover = new AutoMover({ ...OPTIONS, windows: [], endOfDay: 'standing' });
+  const saturday = new Date(2026, 8, 26, 12);
+  assert.ok(mover.inWorkingTime(saturday), 'Saturday too: days only go with hours');
+
+  // Friday 23:50 into Saturday: the countdown runs on, and nothing moves at midnight.
+  mover.setEnabled(true, new Date(2026, 8, 25, 23, 50));
+  assert.equal(mover.poll(new Date(2026, 8, 26, 0, 0), 800, false).kind, 'none');
+  assert.equal(mover.poll(new Date(2026, 8, 26, 0, 5), 800, false).kind, 'none');
+  assert.ok(mover.dueAt !== null, 'still counting down');
+});
+
+test('a window that cannot be read does not become the whole day by accident', () => {
+  // Config validation refuses it first; this is only what is left if it did not.
+  const mover = new AutoMover({ ...OPTIONS, windows: ['08:00-12:00', 'lunch'] });
+  assert.equal(mover.inWorkingTime(at(14)), false);
 });
