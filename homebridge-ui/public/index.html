@@ -6,9 +6,9 @@
 
   The scan panel sits above the ordinary form rather than replacing it: every
   other setting is fine as a plain field, and only the address is hard to come
-  by. The statistics come last, as close to the form as this page reaches: the
-  host draws the form itself, below this page, and nothing here can go inside
-  it.
+  by. The statistics have a tab of their own: the host draws the form itself,
+  below this page, so nothing here can go after it; the tab hides the form
+  instead.
 -->
 <style>
   .eliot-hidden  { display: none; }
@@ -26,8 +26,16 @@
   .eliot-stats   { width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
   .eliot-stats th, .eliot-stats td { padding: .25rem .5rem .25rem 0; }
   .eliot-stats th:not(:first-child), .eliot-stats td:not(:first-child) { text-align: right; }
+  .eliot-tabs    { margin-bottom: 1rem; }
+  .eliot-tabs .nav-link { cursor: pointer; }
 </style>
 
+<ul class="nav nav-tabs eliot-tabs" role="tablist">
+  <li class="nav-item"><button type="button" class="nav-link active" id="eliot-tab-settings" role="tab">Settings</button></li>
+  <li class="nav-item"><button type="button" class="nav-link" id="eliot-tab-stats" role="tab">Statistics</button></li>
+</ul>
+
+<div id="eliot-settings">
 <div class="card mb-3">
   <div class="card-body">
     <h5 class="card-title">Find your desk</h5>
@@ -46,11 +54,16 @@
 </div>
 
 <div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
+</div>
 
 <div class="card mb-3 eliot-hidden" id="eliot-stats-card">
   <div class="card-body">
     <h5 class="card-title">Sitting and standing</h5>
     <div id="eliot-stats"></div>
+    <p class="eliot-hint mb-0 eliot-hidden" id="eliot-stats-none">
+      Nothing counted yet. Time is counted while Auto Movement is running, and the
+      plugin writes it down every five minutes.
+    </p>
   </div>
 </div>
 
@@ -71,24 +84,15 @@
     const SPAN_NAMES = { 1: 'Today', 7: 'Last 7 days', 30: 'Last 30 days',
                          100: 'Last 100 days' };
 
-    /**
-     * Show what the plugin has counted. Hidden until there is something:
-     * a desk without auto movement never has any, and an empty table would
-     * only raise the question of why.
-     */
+    /** Show what the plugin has counted, or say that it has not yet. */
     async function showStats() {
-      const card = document.getElementById('eliot-stats-card');
       const box = document.getElementById('eliot-stats');
       let desks = [];
       try {
         ({ desks } = await homebridge.request('/stats'));
-      } catch {
-        return;
-      }
-      if (!desks.length) {
-        return;
-      }
+      } catch { /* shown as empty */ }
       box.innerHTML = '';
+      document.getElementById('eliot-stats-none').classList.toggle('eliot-hidden', desks.length > 0);
       for (const desk of desks) {
         if (desks.length > 1) {
           const title = document.createElement('h6');
@@ -122,7 +126,6 @@
           `Standing is ${desk.thresholdMm} mm and up.`;
         box.append(table, note, resetButton(desk));
       }
-      card.classList.remove('eliot-hidden');
     }
 
     /**
@@ -134,7 +137,7 @@
     function resetButton(desk) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'btn btn-sm btn-primary mt-2';
+      button.className = 'btn btn-sm btn-danger mt-2';
       button.textContent = 'Reset data';
       let armed = null;
       button.addEventListener('click', async () => {
@@ -152,7 +155,6 @@
         try {
           await homebridge.request('/stats/reset', { mac: desk.mac });
           homebridge.toast.success('Counting starts again from now.', 'Data reset');
-          document.getElementById('eliot-stats-card').classList.add('eliot-hidden');
           await showStats();
         } catch (error) {
           homebridge.toast.error(error.message || String(error), 'Reset failed');
@@ -162,7 +164,27 @@
       });
       return button;
     }
-    void showStats();
+
+    /**
+     * Switch between the settings and the statistics. The statistics tab
+     * hides the host's form, which would otherwise hang below the table.
+     * The numbers are read afresh on every visit, since the plugin keeps
+     * writing them while the page is open.
+     */
+    function showTab(statsTab) {
+      document.getElementById('eliot-tab-settings').classList.toggle('active', !statsTab);
+      document.getElementById('eliot-tab-stats').classList.toggle('active', statsTab);
+      document.getElementById('eliot-settings').classList.toggle('eliot-hidden', statsTab);
+      document.getElementById('eliot-stats-card').classList.toggle('eliot-hidden', !statsTab);
+      if (statsTab) {
+        homebridge.hideSchemaForm();
+        void showStats();
+      } else {
+        void homebridge.showSchemaForm();
+      }
+    }
+    document.getElementById('eliot-tab-settings').addEventListener('click', () => showTab(false));
+    document.getElementById('eliot-tab-stats').addEventListener('click', () => showTab(true));
 
     const check = document.getElementById('eliot-check');
 

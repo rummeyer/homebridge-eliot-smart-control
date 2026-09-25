@@ -6,6 +6,13 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- **Sitting and standing time has a tab of its own** on the settings page,
+  beside the settings rather than above them, and says so when nothing has
+  been counted yet instead of staying hidden. **Reset data** is red, as a
+  button that deletes something should be.
+
 ## [1.12.0] — 2026-09-25
 
 ### Changed

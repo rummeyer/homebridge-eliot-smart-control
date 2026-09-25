@@ -236,12 +236,14 @@ only the switch tells the two apart, so turn it off when you leave, or let
 Anything halfway between the sitting and standing heights or above counts as
 standing.
 
-The totals appear at the top of the plugin's settings page in the Homebridge UI
-— today, and the last 7, 30 and 100 days once the record reaches back that far
-— and not in the Home app, which has no sensor for a length of time. They are
-kept per day for 100 days, in
-`eliot-stats-<address>.json` in the Homebridge storage directory, and written
-every five minutes, so the page can trail the desk by that much.
+The totals appear on the **Statistics** tab of the plugin's settings page in
+the Homebridge UI — today, and the last 7, 30 and 100 days once the record
+reaches back that far — and not in the Home app, which has no sensor for a
+length of time. **Reset data** below the table starts the count again; it asks
+once more on the button itself before deleting anything. The totals are kept
+per day for 100 days, in `eliot-stats-<address>.json` in the Homebridge storage
+directory, and written every five minutes, so the page can trail the desk by
+that much.
 
 ## When the desk stops by itself
 
