@@ -117,7 +117,8 @@
         const note = document.createElement('p');
         note.className = 'eliot-hint mt-2 mb-0';
         note.textContent =
-          `Counted only while Auto Movement is on and inside its hours. ` +
+          `Counted only while Auto Movement is running: switched on, and inside ` +
+          `its working hours if you have set any. ` +
           `Standing is ${desk.thresholdMm} mm and up.`;
         box.append(table, note, resetButton(desk));
       }

@@ -396,7 +396,12 @@ export class EliotAccessory {
     this.#autoTimer.unref();
   }
 
-  /** Count the last half minute as sitting or standing, if it counts. */
+  /**
+   * Count the last half minute as sitting or standing, if it counts.
+   *
+   * It counts while auto movement is running: on, and inside the working hours
+   * — which, with none configured, is any time it is on.
+   */
   #sampleStats(): void {
     const stats = this.#stats;
     const mover = this.#mover;

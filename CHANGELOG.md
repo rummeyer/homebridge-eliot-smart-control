@@ -19,6 +19,9 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   end-of-day move, if one is set. Midnight is still the end without working
   hours, or when it was switched on after they ended. The config key is still
   `switchOffDaily`.
+- **Sitting and standing time is counted while auto movement is running**:
+  switched on, and inside the working hours if there are any. Without them
+  that is whenever the switch is on.
 - **At the end of the day is now Action at the end of working hours**, which
   is when it happens. The config key is still `endOfDay`.
 

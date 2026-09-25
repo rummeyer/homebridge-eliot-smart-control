@@ -188,10 +188,12 @@ a quarter of an hour, and not after that. A desk already there stays put. With
 
 ### Sitting and standing time
 
-While auto movement is on and inside its hours, the plugin counts how long the
-desk stood at sitting height and how long at standing height. Outside those
-hours it counts nothing: a desk left up overnight is not somebody standing
-overnight. Anything halfway between the configured sitting and standing
+While auto movement is running — switched on, and inside its working hours if
+you have set any — the plugin counts how long the desk stood at sitting height
+and how long at standing height. The rest of the time it counts nothing: a desk
+left up overnight is not somebody standing overnight. Without working hours
+that is only as true as the switch, so turn it off when you leave, or let
+**Turn off at the end of the day** do it at midnight. Anything halfway between the configured sitting and standing
 heights or above counts as standing.
 
 The totals appear at the top of the plugin's settings page in the Homebridge UI
