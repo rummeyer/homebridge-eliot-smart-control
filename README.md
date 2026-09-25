@@ -44,6 +44,10 @@ on the way stops the desk. Only positions you have actually stored appear.
 **The child lock**, as a switch. It shows the desk's real state, so if someone
 locks it at the handset the Home app knows.
 
+**Automatic sit/stand**, as an **Auto Movement** switch, a **Timer** slider
+counting down to the next move, and a **Desk Move Soon** sensor that warns
+before it. See [Automatic sit/stand](#automatic-sitstand).
+
 Everything follows the desk, not just the other way round. Use the handset and
 the Home app keeps up. A desk out of range says *No Response* rather than
 showing you the height it had an hour ago.
@@ -104,9 +108,7 @@ dongle for five seconds.
 | **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
 | **Child lock switch** | on | Offer the desk's child lock |
 | **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
-| **Automatic sit/stand** | off | Move between two heights on a timer, during your working hours, or at any time if you set none |
-| **Turn off at the end of the day** | off | Switch auto movement off when your working hours end, or at midnight without them, so it only runs on days you turn it on |
-| **Action at the end of working hours** | do nothing | Move to standing or sitting height when the day's last working hours end |
+| **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
 
 Or by hand, in `config.json`:
 
@@ -125,21 +127,58 @@ Or by hand, in `config.json`:
 
 ## Automatic sit/stand
 
-Configure it, and the desk gains an **Auto Movement** switch. Nothing moves
-until you turn that on — the switch is the feature's on/off, so that turning it
-off is somewhere obvious rather than in a config file.
+The desk moves between your sitting and standing heights on a timer. The
+**Auto Movement** switch in the Home app starts and stops it: nothing moves
+while it is off, and it is off until you turn it on — so turning it off is
+somewhere obvious rather than in a config file.
 
-Once on, inside the hours you have set, the desk alternates between your
-sitting and standing heights. Set no working hours and it may move at any time, on
-any day: the days only go with working hours, and the settings page hides them
-until there are some. The countdown carries on across midnight. It always heads for whichever of the two it is
-further from, so a desk parked halfway still does the right thing.
+Each move heads for whichever of the two heights the desk is further from, so a
+desk parked halfway still does the right thing.
+
+| | | |
+|---|---|---|
+| **Sitting / standing height** | 800 / 1200 mm | The two heights it moves between |
+| **Interval** | 30 min | How long at one height before moving to the other |
+| **Warn before** | 5 min | How long before a move the **Desk Move Soon** sensor trips. 0 turns the warning off and removes the sensor |
+| **Timer slider** | on | Show the countdown as a **Timer** slider |
+| **Turn off at the end of the day** | off | Switch auto movement off when the day is over, so it only runs on days you turn it on |
+| **Working hours** | none | When it may move, as `08:00-12:00`. None means any time |
+| **Days** | Mon–Fri | Which days the working hours apply to. Only with working hours |
+| **Action at the end of working hours** | do nothing | Move to standing or sitting height when the day's last working hours end. Only with working hours |
+
+By hand, in `config.json`, inside the desk:
+
+```json
+"autoMove": {
+  "sittingMm": 750,
+  "standingMm": 1150,
+  "intervalMinutes": 45,
+  "windows": ["08:00-12:00", "13:00-17:00"],
+  "switchOffDaily": true,
+  "endOfDay": "standing"
+}
+```
+
+### Working hours
+
+**Without working hours, it may move at any time, on any day**, for as long as
+the switch is on. The countdown carries on across midnight. Days and the
+end-of-day action need working hours, and the settings page hides them until
+there are some.
+
+**With working hours, it moves only inside them, on the days you have
+ticked.** Outside them nothing moves and no warning is raised — a phone
+buzzing at 17:05 about a move that will never happen is worse than silence.
+The countdown starts when a window opens rather than moving the desk then, so
+it does not jump at 08:00 sharp before anyone has sat down.
 
 **A break between two windows pauses the timer.** With 08:00–12:00 and
-13:00–16:00, whatever is left at noon is still left at 13:00, and the slider
+13:00–17:00, whatever is left at noon is still left at 13:00, and the slider
 holds still over lunch. If the desk would move within the warning time, it
 waits for the warning first. Overnight does not count as a break: each
 morning starts a full interval.
+
+### The timer
 
 **Moving the desk yourself restarts the timer.** That is the snooze: when the
 warning says it is about to move and you are mid-call, nudge the desk with the
@@ -147,10 +186,11 @@ handset and you have bought another interval. It is also simply true — the
 timer measures time spent at a height, and that clock restarts when the height
 does.
 
-**The countdown is on show, as a slider.** Auto movement brings a **Timer**
-with it — a light whose brightness is how much of the interval is left before
-the next move. It fills to 100% when you switch auto movement on and runs down
-from there; a handset nudge or a move fills it again.
+**The countdown is on show, as a slider.** The **Timer** is a light whose
+brightness is how much of the interval is left before the next move. It fills
+to 100% when you switch auto movement on and runs down from there; a handset
+nudge or a move fills it again. Outside working hours it stands still — full,
+or where lunch interrupted it.
 
 Dragging it is how you change the wait, and nothing else about it: halfway
 means half an interval left, all the way up buys a fresh one. **All the way
@@ -165,26 +205,25 @@ called **Desk Move Soon**. Open it in the Home app, and under *Status and
 Notifications* turn notifications on. Nothing here can do that for you, and if
 you never do it the feature still works, silently.
 
-Outside the configured hours nothing moves and no warning is raised — a phone
-buzzing at 17:05 about a move that will never happen is worse than silence.
+### The end of the day
 
-**Turn off at the end of the day** turns the switch off when the day is over,
-so it means "move me today" rather than "move me from now on". The day is over
-when your working hours end — after the last window, not at lunch — or at
-midnight if you have set none, or if you switched it on after they ended.
-Without it the switch is a standing instruction, which is right for a desk used
-the same way every day and wrong for one that is not: a week away, and it has
-been cycling an empty room for five days. The switch-on time is remembered, so
-a restart does not hand it a fresh day.
+**Turn off at the end of the day** switches auto movement off when the day is
+over, so the switch means "move me today" rather than "move me from now on".
+The day is over when your working hours end — after the last window, not at
+lunch — or at midnight if you have set none, or if you switched it on after
+they ended. Without it the switch is a standing instruction, which is right for
+a desk used the same way every day and wrong for one that is not: a week away,
+and it has been cycling an empty room for five days. The switch-on time is
+remembered, so a restart does not hand it a fresh day.
 
 **Action at the end of working hours** moves the desk once when the day's
 last window closes — to standing height, so the next morning starts on your
-feet, or to sitting height, to have it out of the way. The settings page offers
-it only once there are working hours. Only with auto movement on and only
-on the configured days; not at a gap between windows, like lunch. If the desk
-is out of reach at the close, the move still happens when it comes back within
-a quarter of an hour, and not after that. A desk already there stays put. With
-**Turn off at the end of the day** as well, the switch goes off after this move.
+feet, or to sitting height, to have it out of the way. Only with auto movement
+on and only on the configured days; not at a gap between windows, like lunch.
+If the desk is out of reach at the close, the move still happens when it comes
+back within a quarter of an hour, and not after that. A desk already there
+stays put. With **Turn off at the end of the day** as well, the switch goes off
+after this move.
 
 ### Sitting and standing time
 
@@ -192,9 +231,10 @@ While auto movement is running — switched on, and inside its working hours if
 you have set any — the plugin counts how long the desk stood at sitting height
 and how long at standing height. The rest of the time it counts nothing: a desk
 left up overnight is not somebody standing overnight. Without working hours
-that is only as true as the switch, so turn it off when you leave, or let
-**Turn off at the end of the day** do it at midnight. Anything halfway between the configured sitting and standing
-heights or above counts as standing.
+only the switch tells the two apart, so turn it off when you leave, or let
+**Turn off at the end of the day** do it at midnight.
+Anything halfway between the sitting and standing heights or above counts as
+standing.
 
 The totals appear at the top of the plugin's settings page in the Homebridge UI
 — today, and the last 7, 30 and 100 days once the record reaches back that far
