@@ -113,7 +113,7 @@
             },
             "autoMove": {
               "type": "object",
-              "description": "Move the desk between two heights on a timer. Adds an <b>Auto Movement</b> switch to the Home app, and nothing moves until you turn it on.",
+              "description": "Move the desk between two heights on a timer, within your working hours if you set any. The <b>Auto Movement</b> switch in the Home app starts and stops it: nothing moves while it is off.",
               "properties": {
                 "sittingMm": {
                   "title": "Sitting height (mm)",
