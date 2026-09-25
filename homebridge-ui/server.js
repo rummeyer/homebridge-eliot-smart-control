@@ -14,7 +14,7 @@ import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-ut
 
 import { discoverDesks } from '../dist/eliot/discover.js';
 import { describeError } from '../dist/errors.js';
-import { SPANS, daysRecorded, readStats, statsPath, totalsFor } from '../dist/stats.js';
+import { readStats, shownSpans, statsPath, totalsFor } from '../dist/stats.js';
 
 class EliotUiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -55,9 +55,8 @@ class EliotUiServer extends HomebridgePluginUiServer {
         mac: data.mac,
         thresholdMm: data.thresholdMm,
         savedAt: data.savedAt,
-        spans: SPANS.filter(
-          (days) => days === 1 || daysRecorded(data.days, now) >= days,
-        ).map((days) => ({ days, ...totalsFor(data.days, days, now) })),
+        spans: shownSpans(data.days, now)
+          .map((days) => ({ days, ...totalsFor(data.days, days, now) })),
       });
     }
     return { desks };

@@ -6,6 +6,17 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Last 3 days** on the Statistics tab.
+
+### Changed
+
+- **Each span on the Statistics tab shows as soon as it adds something**, that
+  is once the record reaches back further than the span before it, rather than
+  only once it is full. With data from yesterday the page shows the last 3 days
+  instead of nothing but today, and from the fourth day the last 7.
+
 ## [1.12.1] — 2026-09-25
 
 ### Changed

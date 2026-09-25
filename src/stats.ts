@@ -36,7 +36,7 @@ export interface StatsFile {
 export const KEEP_DAYS = 100;
 
 /** The spans the settings page shows, in days, today included. */
-export const SPANS = [1, 7, 30, 100] as const;
+export const SPANS = [1, 3, 7, 30, 100] as const;
 
 /**
  * Longest gap between two samples that still counts as continuous.
@@ -91,9 +91,9 @@ export function totalsFor(days: Record<string, DayTotals>, span: number, now: Da
 /**
  * How many calendar days the record reaches back, today included.
  *
- * A span longer than this would repeat a shorter one's numbers under a
- * bigger name, so the settings page leaves it out until the record is long
- * enough to fill it. Counted from the first day recorded, not the number of
+ * A span that reaches no further back than the record's first day would
+ * repeat a shorter one's numbers under a bigger name, so the settings page
+ * leaves such spans out. Counted from the first day recorded, not the number of
  * days with data: a weekend without any still belongs to the week.
  */
 export function daysRecorded(days: Record<string, DayTotals>, now: Date): number {
@@ -106,6 +106,18 @@ export function daysRecorded(days: Record<string, DayTotals>, now: Date): number
   const today = new Date(now.getFullYear(), now.getMonth(), now.getDate());
   // Rounded, because a daylight saving change makes one day 23 or 25 hours.
   return Math.round((today.getTime() - first.getTime()) / 86_400_000) + 1;
+}
+
+/**
+ * The spans worth showing for this record, shortest first.
+ *
+ * Today always, and each longer span once the record reaches back past the
+ * span before it: from then on it counts days the shorter one does not, so it
+ * says something new, even while it is not full yet.
+ */
+export function shownSpans(days: Record<string, DayTotals>, now: Date): number[] {
+  const recorded = daysRecorded(days, now);
+  return SPANS.filter((_, i) => i === 0 || recorded > SPANS[i - 1]);
 }
 
 /** What a sample needs to know about the desk and the schedule. */

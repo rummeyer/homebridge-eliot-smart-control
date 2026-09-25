@@ -5,7 +5,7 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 
-import { PostureStats, daysRecorded, readStats, statsPath, totalsFor } from '../src/stats.ts';
+import { PostureStats, daysRecorded, readStats, shownSpans, statsPath, totalsFor } from '../src/stats.ts';
 
 const MAC = 'E5:02:4F:BF:74:A2';
 const THRESHOLD = 1002;
@@ -140,6 +140,20 @@ test('the record reaches back from its first day, gaps included', () => {
     daysRecorded({ '2026-10-24': { sitting: 1, standing: 0 } }, new Date(2026, 9, 26, 9)),
     3,
   );
+});
+
+test('a span shows once the record reaches past the one before it', () => {
+  const now = new Date(at(15, 0));
+  const since = (key: string) => shownSpans({ [key]: { sitting: 1, standing: 0 } }, now);
+  assert.deepEqual(shownSpans({}, now), [1]);
+  assert.deepEqual(since('2026-09-24'), [1]);
+  assert.deepEqual(since('2026-09-23'), [1, 3]);
+  assert.deepEqual(since('2026-09-22'), [1, 3]);
+  assert.deepEqual(since('2026-09-21'), [1, 3, 7]);
+  assert.deepEqual(since('2026-09-18'), [1, 3, 7]);
+  assert.deepEqual(since('2026-09-17'), [1, 3, 7, 30]);
+  assert.deepEqual(since('2026-08-26'), [1, 3, 7, 30]);
+  assert.deepEqual(since('2026-08-25'), [1, 3, 7, 30, 100]);
 });
 
 test('spans are counted back by calendar day, today included', () => {

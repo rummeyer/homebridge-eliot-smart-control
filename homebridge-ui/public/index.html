@@ -81,7 +81,7 @@
       const minutes = Math.round(seconds / 60);
       return `${Math.floor(minutes / 60)}:${String(minutes % 60).padStart(2, '0')} h`;
     };
-    const SPAN_NAMES = { 1: 'Today', 7: 'Last 7 days', 30: 'Last 30 days',
+    const SPAN_NAMES = { 1: 'Today', 3: 'Last 3 days', 7: 'Last 7 days', 30: 'Last 30 days',
                          100: 'Last 100 days' };
 
     /** Show what the plugin has counted, or say that it has not yet. */
