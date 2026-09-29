@@ -106,13 +106,13 @@ dongle for five seconds.
 
 ## Settings
 
-| | | |
+| Setting | Default | What it does |
 |---|---|---|
-| **Name** | required | What the desk is called in the Home app |
-| **Dongle address** | required | Filled in for you by the scan |
+| **Name** | – | Required. What the desk is called in the Home app |
+| **Dongle address** | – | Required. Filled in for you by the scan |
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
-| **Eco mode** | the desk's current setting | Eco mode and travel speed, as a pair: *on* is slow and quiet (about 22 mm/s), *off* about twice as fast (42 mm/s). Takes effect after a reset, which the plugin asks for |
-| **Anti-collision sensitivity** | the desk's current setting | How easily the control box stops for an obstruction: *high*, *medium* or *low* — see [below](#when-the-desk-stops-by-itself). Takes effect after a reset, which the plugin asks for |
+| **Eco mode** | keep the desk's current setting | Eco mode and travel speed, as a pair: *on* is slow and quiet (about 22 mm/s), *off* about twice as fast (42 mm/s). Takes effect after a reset, which the plugin asks for |
+| **Anti-collision sensitivity** | keep the desk's current setting | How easily the control box stops for an obstruction: *high*, *medium* or *low* — see [below](#when-the-desk-stops-by-itself). Takes effect after a reset, which the plugin asks for |
 | **Child lock as a switch** | on | Offer the desk's child lock |
 | **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
 | **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
@@ -122,7 +122,7 @@ What the desk currently has stored for eco mode and sensitivity is on the
 
 Under **Advanced**, for all desks at once:
 
-| | | |
+| Setting | Default | What it does |
 |---|---|---|
 | **Bluetooth adapter** | system default | Which adapter to use, e.g. `hci1`, when the machine has more than one — say a USB dongle with better range next to the built-in one. `hciconfig` lists them. The scan on the settings page uses it too |
 
@@ -151,7 +151,7 @@ somewhere obvious rather than in a config file.
 Each move heads for whichever of the two heights the desk is further from, so a
 desk parked halfway still does the right thing.
 
-| | | |
+| Setting | Default | What it does |
 |---|---|---|
 | **Sitting / standing height** | 800 / 1200 mm | The two heights it moves between |
 | **Move every** | 30 min | How long at one height before moving to the other |
