@@ -6,6 +6,18 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.1] — 2026-09-29
+
+### Changed
+
+- **The README has a section on the settings page**, named in the
+  introduction, covering the Desk tab and both statistics tables. They were
+  described before, but after the automatic sit/stand section, where nobody
+  would look for them.
+- **The README's settings tables have column headings.** Without them the
+  first row read as the heading, and the defaults for eco mode and
+  sensitivity looked like something else.
+
 ## [1.15.0] — 2026-09-29
 
 ### Added
@@ -654,7 +666,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...HEAD
+[1.15.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.12.1...v1.13.0
