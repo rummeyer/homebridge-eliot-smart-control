@@ -14,8 +14,15 @@ import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-ut
 
 import { discoverDesks } from '../dist/eliot/discover.js';
 import { describeError } from '../dist/errors.js';
-import { readStats, shownSpans, statsPath, totalsFor } from '../dist/stats.js';
-import { readStoredSettings } from '../dist/stored-settings.js';
+import { readSnapshot } from '../dist/snapshot.js';
+import {
+  hasTravel,
+  readStats,
+  shownSpans,
+  statsPath,
+  totalsFor,
+  travelFor,
+} from '../dist/stats.js';
 
 class EliotUiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -23,15 +30,15 @@ class EliotUiServer extends HomebridgePluginUiServer {
     this.onRequest('/scan', (r) => this.scan(r));
     this.onRequest('/stats', () => this.stats());
     this.onRequest('/stats/reset', (r) => this.resetStats(r));
-    this.onRequest('/desk-settings', () => this.deskSettings());
+    this.onRequest('/desks', () => this.desks());
     this.ready();
   }
 
   /**
-   * Eco mode and sensitivity as each desk last reported them, from the files
-   * the plugin writes when it connects. Nothing for a desk it has not reached.
+   * What each desk last reported about itself, from the files the plugin
+   * writes when something changes. Nothing for a desk it has not reached.
    */
-  async deskSettings() {
+  async desks() {
     const dir = this.homebridgeStoragePath;
     if (!dir) {
       return { desks: [] };
@@ -44,13 +51,14 @@ class EliotUiServer extends HomebridgePluginUiServer {
     }
     const desks = names
       .sort()
-      .map((file) => readStoredSettings(join(dir, file)))
+      .map((file) => readSnapshot(join(dir, file)))
       .filter((data) => data !== null);
     return { desks };
   }
 
   /**
-   * Sitting and standing time per desk, from the files the plugin writes.
+   * Sitting and standing time and travel speed per desk, from the files the
+   * plugin writes.
    *
    * Read from disk rather than asked of the running plugin, which is a
    * separate process this page has no line to. The plugin writes every few
@@ -79,8 +87,12 @@ class EliotUiServer extends HomebridgePluginUiServer {
         mac: data.mac,
         thresholdMm: data.thresholdMm,
         savedAt: data.savedAt,
+        // Each table from its own first day, so a desk first timed today
+        // does not show a week of speeds it has no data for.
         spans: shownSpans(data.days, now)
           .map((days) => ({ days, ...totalsFor(data.days, days, now) })),
+        travelSpans: shownSpans(data.days, now, hasTravel)
+          .map((days) => ({ days, ...travelFor(data.days, days, now) })),
       });
     }
     return { desks };

@@ -8,16 +8,37 @@
  *
  * Kept per local calendar day as two numbers, not as a trace of heights, for
  * the last hundred days. That is all the settings page shows.
+ *
+ * The same file keeps the desk's journeys — how many, how far and how long in
+ * each direction — for its travel speed. Those are counted on every desk,
+ * whenever it moves, with or without auto movement.
  */
 import { readFileSync, renameSync, statSync, writeFileSync } from 'node:fs';
 import { join } from 'node:path';
 
+import type { Direction, Travel } from './travel.ts';
+
 export type Posture = 'sitting' | 'standing';
 
-/** Seconds at each posture on one day. */
+/** Journeys in one direction: how many, how far and how long, all summed. */
+export interface TravelTotals {
+  moves: number;
+  mm: number;
+  seconds: number;
+}
+
+/**
+ * Seconds at each posture on one day, and the journeys made.
+ *
+ * The journeys are there only on days the desk went anywhere, and counted
+ * whether or not auto movement was on: a desk's speed does not depend on who
+ * sent it.
+ */
 export interface DayTotals {
   sitting: number;
   standing: number;
+  up?: TravelTotals;
+  down?: TravelTotals;
 }
 
 /** What is on disk. Also read by the settings page, which runs separately. */
@@ -25,8 +46,11 @@ export interface StatsFile {
   version: 1;
   name: string;
   mac: string;
-  /** The height that divides sitting from standing when this was written. */
-  thresholdMm: number;
+  /**
+   * The height that divides sitting from standing when this was written, or
+   * null for a desk without auto movement, where only journeys are counted.
+   */
+  thresholdMm: number | null;
   savedAt: string;
   /** Keyed by local day, as `2026-09-24`. */
   days: Record<string, DayTotals>;
@@ -89,15 +113,54 @@ export function totalsFor(days: Record<string, DayTotals>, span: number, now: Da
 }
 
 /**
+ * Journeys over the last `days` calendar days, today included, counted back
+ * the same way as {@link totalsFor}.
+ */
+export function travelFor(
+  days: Record<string, DayTotals>,
+  span: number,
+  now: Date,
+): Record<Direction, TravelTotals> {
+  const total = {
+    up: { moves: 0, mm: 0, seconds: 0 },
+    down: { moves: 0, mm: 0, seconds: 0 },
+  };
+  const day = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  for (let i = 0; i < span; i += 1) {
+    const entry = days[dayKey(day)];
+    for (const direction of ['up', 'down'] as const) {
+      const part = entry?.[direction];
+      if (part) {
+        total[direction].moves += part.moves;
+        total[direction].mm += part.mm;
+        total[direction].seconds += part.seconds;
+      }
+    }
+    day.setDate(day.getDate() - 1);
+  }
+  return total;
+}
+
+/**
  * How many calendar days the record reaches back, today included.
  *
  * A span that reaches no further back than the record's first day would
  * repeat a shorter one's numbers under a bigger name, so the settings page
  * leaves such spans out. Counted from the first day recorded, not the number of
  * days with data: a weekend without any still belongs to the week.
+ *
+ * Sitting and standing and the journeys each count from their own first day,
+ * picked out by `has`: a desk that has stood in the statistics for a week and
+ * was first timed today has a week of the one and a day of the other.
  */
-export function daysRecorded(days: Record<string, DayTotals>, now: Date): number {
-  const keys = Object.keys(days).sort();
+export function daysRecorded(
+  days: Record<string, DayTotals>,
+  now: Date,
+  has: (day: DayTotals) => boolean = hasPosture,
+): number {
+  const keys = Object.keys(days)
+    .filter((key) => has(days[key]))
+    .sort();
   if (keys.length === 0) {
     return 0;
   }
@@ -108,6 +171,16 @@ export function daysRecorded(days: Record<string, DayTotals>, now: Date): number
   return Math.round((today.getTime() - first.getTime()) / 86_400_000) + 1;
 }
 
+/** A day with sitting or standing time on it. */
+export function hasPosture(day: DayTotals): boolean {
+  return day.sitting + day.standing > 0;
+}
+
+/** A day the desk went somewhere. */
+export function hasTravel(day: DayTotals): boolean {
+  return (day.up?.moves ?? 0) + (day.down?.moves ?? 0) > 0;
+}
+
 /**
  * The spans worth showing for this record, shortest first.
  *
@@ -115,8 +188,12 @@ export function daysRecorded(days: Record<string, DayTotals>, now: Date): number
  * span before it: from then on it counts days the shorter one does not, so it
  * says something new, even while it is not full yet.
  */
-export function shownSpans(days: Record<string, DayTotals>, now: Date): number[] {
-  const recorded = daysRecorded(days, now);
+export function shownSpans(
+  days: Record<string, DayTotals>,
+  now: Date,
+  has: (day: DayTotals) => boolean = hasPosture,
+): number[] {
+  const recorded = daysRecorded(days, now, has);
   return SPANS.filter((_, i) => i === 0 || recorded > SPANS[i - 1]);
 }
 
@@ -132,7 +209,7 @@ export class PostureStats {
   readonly #path: string;
   readonly #name: string;
   readonly #mac: string;
-  readonly #thresholdMm: number;
+  readonly #thresholdMm: number | null;
   #days: Record<string, DayTotals>;
   /** The last sample that counted, and what it saw. */
   #last: { at: number; posture: Posture } | null = null;
@@ -143,9 +220,10 @@ export class PostureStats {
   /**
    * @param thresholdMm Heights at or above this are standing. Halfway between
    *   the configured sitting and standing heights: nobody works for long in
-   *   between, so where exactly the line falls hardly matters.
+   *   between, so where exactly the line falls hardly matters. Null without
+   *   auto movement, which leaves nothing to count but journeys.
    */
-  constructor(path: string, name: string, mac: string, thresholdMm: number) {
+  constructor(path: string, name: string, mac: string, thresholdMm: number | null) {
     this.#path = path;
     this.#name = name;
     this.#mac = mac;
@@ -170,10 +248,22 @@ export class PostureStats {
     if (last && now > last.at && now - last.at <= MAX_GAP_MS) {
       this.#add(last.at, now, last.posture);
     }
+    const threshold = this.#thresholdMm;
     this.#last =
-      input.counting && input.heightMm !== null
-        ? { at: now, posture: input.heightMm >= this.#thresholdMm ? 'standing' : 'sitting' }
+      input.counting && input.heightMm !== null && threshold !== null
+        ? { at: now, posture: input.heightMm >= threshold ? 'standing' : 'sitting' }
         : null;
+  }
+
+  /** Add a finished journey to the day it ended on. */
+  addTravel(travel: Travel): void {
+    const key = dayKey(new Date(travel.endedAt));
+    const entry = (this.#days[key] ??= { sitting: 0, standing: 0 });
+    const part = (entry[travel.direction] ??= { moves: 0, mm: 0, seconds: 0 });
+    part.moves += 1;
+    part.mm += travel.mm;
+    part.seconds = Math.round((part.seconds + travel.seconds) * 100) / 100;
+    this.#dirty = true;
   }
 
   /** Credit `from`–`to` to a posture, split at midnight where it crosses one. */

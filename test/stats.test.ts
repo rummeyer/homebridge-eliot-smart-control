@@ -5,7 +5,16 @@ import { join } from 'node:path';
 import test from 'node:test';
 import type { TestContext } from 'node:test';
 
-import { PostureStats, daysRecorded, readStats, shownSpans, statsPath, totalsFor } from '../src/stats.ts';
+import {
+  PostureStats,
+  daysRecorded,
+  hasTravel,
+  readStats,
+  shownSpans,
+  statsPath,
+  totalsFor,
+  travelFor,
+} from '../src/stats.ts';
 
 const MAC = 'E5:02:4F:BF:74:A2';
 const THRESHOLD = 1002;
@@ -167,4 +176,62 @@ test('spans are counted back by calendar day, today included', () => {
   assert.deepEqual(totalsFor(days, 1, now), { sitting: 100, standing: 50 });
   assert.deepEqual(totalsFor(days, 7, now), { sitting: 110, standing: 50 });
   assert.deepEqual(totalsFor(days, 8, now), { sitting: 1110, standing: 1050 });
+});
+
+test('journeys are added to the day they ended on, by direction', (t) => {
+  const { path, stats } = fresh(t);
+  stats.addTravel({ direction: 'up', mm: 400, seconds: 9.8, endedAt: at(9, 0) });
+  stats.addTravel({ direction: 'up', mm: 200, seconds: 5.2, endedAt: at(11, 0) });
+  stats.addTravel({ direction: 'down', mm: 400, seconds: 9.5, endedAt: at(11, 30) });
+  stats.addTravel({ direction: 'down', mm: 100, seconds: 3, endedAt: new Date(2026, 8, 23, 17).getTime() });
+
+  assert.deepEqual(stats.days['2026-09-24'], {
+    sitting: 0,
+    standing: 0,
+    up: { moves: 2, mm: 600, seconds: 15 },
+    down: { moves: 1, mm: 400, seconds: 9.5 },
+  });
+
+  const now = new Date(at(12, 0));
+  assert.deepEqual(travelFor(stats.days, 1, now), {
+    up: { moves: 2, mm: 600, seconds: 15 },
+    down: { moves: 1, mm: 400, seconds: 9.5 },
+  });
+  assert.deepEqual(travelFor(stats.days, 3, now).down, { moves: 2, mm: 500, seconds: 12.5 });
+  assert.deepEqual(totalsFor(stats.days, 3, now), { sitting: 0, standing: 0 }, 'posture untouched');
+
+  stats.save(now);
+  assert.deepEqual(readStats(path)?.days['2026-09-24']?.up, { moves: 2, mm: 600, seconds: 15 });
+});
+
+test('without auto movement only journeys are counted', (t) => {
+  const dir = mkdtempSync(join(tmpdir(), 'eliot-stats-'));
+  t.after(() => rmSync(dir, { recursive: true, force: true }));
+  const path = statsPath(dir, MAC);
+  const stats = new PostureStats(path, 'Desk', MAC, null);
+  stats.sample(at(9, 0), { counting: true, heightMm: 1200 });
+  stats.sample(at(9, 1), { counting: true, heightMm: 1200 });
+  assert.deepEqual(stats.days, {});
+
+  stats.addTravel({ direction: 'up', mm: 400, seconds: 10, endedAt: at(9, 2) });
+  stats.save(new Date(at(9, 2)));
+  assert.equal(readStats(path)?.thresholdMm, null);
+});
+
+test('the speeds count from the first day the desk was timed, not the first day on record', () => {
+  const now = new Date(2026, 8, 29, 9);
+  const days = {
+    '2026-09-22': { sitting: 3600, standing: 1800 },
+    '2026-09-29': {
+      sitting: 600,
+      standing: 0,
+      up: { moves: 1, mm: 402, seconds: 10.14 },
+    },
+  };
+  assert.deepEqual(shownSpans(days, now), [1, 3, 7, 30]);
+  assert.deepEqual(shownSpans(days, now, hasTravel), [1]);
+
+  const travelOnly = { '2026-09-27': { sitting: 0, standing: 0, down: { moves: 1, mm: 400, seconds: 10 } } };
+  assert.deepEqual(shownSpans(travelOnly, now), [1], 'no posture yet: today only');
+  assert.deepEqual(shownSpans(travelOnly, now, hasTravel), [1, 3]);
 });

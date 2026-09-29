@@ -6,9 +6,9 @@
 
   The scan panel sits above the ordinary form rather than replacing it: every
   other setting is fine as a plain field, and only the address is hard to come
-  by. The statistics have a tab of their own: the host draws the form itself,
-  below this page, so nothing here can go after it; the tab hides the form
-  instead.
+  by. What the desk reports and the statistics have tabs of their own: the
+  host draws the form itself, below this page, so nothing here can go after
+  it; those tabs hide the form instead.
 -->
 <style>
   .eliot-hidden  { display: none; }
@@ -32,6 +32,7 @@
 
 <ul class="nav nav-tabs eliot-tabs" role="tablist">
   <li class="nav-item"><button type="button" class="nav-link active" id="eliot-tab-settings" role="tab">Settings</button></li>
+  <li class="nav-item"><button type="button" class="nav-link" id="eliot-tab-desk" role="tab">Desk</button></li>
   <li class="nav-item"><button type="button" class="nav-link" id="eliot-tab-stats" role="tab">Statistics</button></li>
 </ul>
 
@@ -53,28 +54,26 @@
   </div>
 </div>
 
-<div class="card mb-3 eliot-hidden" id="eliot-stored-card">
+<div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
+</div>
+
+<div class="card mb-3 eliot-hidden" id="eliot-desk-card">
   <div class="card-body">
-    <h5 class="card-title">Stored on the desk</h5>
-    <div id="eliot-stored"></div>
-    <p class="eliot-hint mt-2 mb-0">
-      What <i>Keep the desk's current setting</i> keeps, as the desk reported it when the
-      plugin last connected. A changed setting takes effect with the desk's next reset, so
-      until then it may still be running the one before.
+    <h5 class="card-title">Current values from the desk</h5>
+    <div id="eliot-desk"></div>
+    <p class="eliot-hint mb-0 eliot-hidden" id="eliot-desk-none">
+      Nothing yet. The plugin writes this down once it has connected to the desk.
     </p>
   </div>
 </div>
 
-<div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
-</div>
-
 <div class="card mb-3 eliot-hidden" id="eliot-stats-card">
   <div class="card-body">
-    <h5 class="card-title">Sitting and standing</h5>
     <div id="eliot-stats"></div>
     <p class="eliot-hint mb-0 eliot-hidden" id="eliot-stats-none">
-      Nothing counted yet. Time is counted while Auto Movement is running, and the
-      plugin writes it down every five minutes.
+      Nothing counted yet. Journeys are counted whenever the desk moves, sitting and
+      standing time while Auto Movement is running, and the plugin writes them down
+      every five minutes.
     </p>
   </div>
 </div>
@@ -107,37 +106,87 @@
       document.getElementById('eliot-stats-none').classList.toggle('eliot-hidden', desks.length > 0);
       for (const desk of desks) {
         if (desks.length > 1) {
-          const title = document.createElement('h6');
-          title.className = 'mt-2';
+          const title = document.createElement('h5');
+          title.className = 'card-title mt-2';
           title.textContent = desk.name;
           box.append(title);
         }
-        const table = document.createElement('table');
-        table.className = 'eliot-stats';
-        const head = table.createTHead().insertRow();
-        for (const label of ['', 'Sitting', 'Standing', 'Standing share']) {
+        const posture = desk.thresholdMm !== null ||
+          desk.spans.some((s) => s.sitting + s.standing > 0);
+        if (posture) {
+          box.append(
+            heading('Sitting and standing'),
+            table(['', 'Sitting', 'Standing', 'Standing share'], desk.spans.map((span) => {
+              const total = span.sitting + span.standing;
+              const share = total > 0 ? `${Math.round((span.standing / total) * 100)} %` : '–';
+              return [spanName(span.days), hours(span.sitting), hours(span.standing), share];
+            })),
+            note(
+              'Counted only while Auto Movement is running: switched on, and inside ' +
+                'its working hours if you have set any.' +
+                (desk.thresholdMm !== null ? ` Standing is ${desk.thresholdMm} mm and up.` : ''),
+            ),
+          );
+        }
+        if (desk.travelSpans.some((s) => s.up.moves + s.down.moves > 0)) {
+          box.append(
+            heading('Travel speed', posture),
+            table(['', 'Moves', 'Average', 'Up', 'Down'], desk.travelSpans.map((span) => {
+              const { up, down } = span;
+              const all = { moves: up.moves + down.moves, mm: up.mm + down.mm,
+                            seconds: up.seconds + down.seconds };
+              return [spanName(span.days), String(all.moves), speed(all), speed(up), speed(down)];
+            })),
+            note(
+              'Every move of 3 cm or more, whoever started it, timed from the first height ' +
+                'the desk reports on the way to the last — getting going and slowing down ' +
+                'included. The average is the distance over the time, all moves together.',
+            ),
+          );
+        }
+        box.append(resetButton(desk));
+      }
+    }
+
+    const spanName = (days) => SPAN_NAMES[days] ?? `Last ${days} days`;
+
+    /** Distance over time, as the desk's own unit rather than a percentage. */
+    const speed = (t) => (t.moves > 0 && t.seconds > 0 ? `${(t.mm / t.seconds).toFixed(1)} mm/s` : '–');
+
+    function heading(text, spaced = false) {
+      const h = document.createElement('h6');
+      h.className = spaced ? 'mt-4' : '';
+      h.textContent = text;
+      return h;
+    }
+
+    function note(text) {
+      const p = document.createElement('p');
+      p.className = 'eliot-hint mt-2 mb-0';
+      p.textContent = text;
+      return p;
+    }
+
+    /** A table, right-aligned from the second column on; no header row without labels. */
+    function table(labels, rows) {
+      const t = document.createElement('table');
+      t.className = 'eliot-stats';
+      if (labels) {
+        const head = t.createTHead().insertRow();
+        for (const label of labels) {
           const th = document.createElement('th');
           th.textContent = label;
           head.append(th);
         }
-        const body = table.createTBody();
-        for (const span of desk.spans) {
-          const row = body.insertRow();
-          const total = span.sitting + span.standing;
-          const share = total > 0 ? `${Math.round((span.standing / total) * 100)} %` : '–';
-          for (const text of [SPAN_NAMES[span.days] ?? `Last ${span.days} days`,
-                              hours(span.sitting), hours(span.standing), share]) {
-            row.insertCell().textContent = text;
-          }
-        }
-        const note = document.createElement('p');
-        note.className = 'eliot-hint mt-2 mb-0';
-        note.textContent =
-          `Counted only while Auto Movement is running: switched on, and inside ` +
-          `its working hours if you have set any. ` +
-          `Standing is ${desk.thresholdMm} mm and up.`;
-        box.append(table, note, resetButton(desk));
       }
+      const body = t.createTBody();
+      for (const cells of rows) {
+        const row = body.insertRow();
+        for (const text of cells) {
+          row.insertCell().textContent = text;
+        }
+      }
+      return t;
     }
 
     /**
@@ -178,64 +227,89 @@
     }
 
     /**
-     * Switch between the settings and the statistics. The statistics tab
-     * hides the host's form, which would otherwise hang below the table.
-     * The numbers are read afresh on every visit, since the plugin keeps
-     * writing them while the page is open.
+     * Switch between the tabs. Only Settings shows the host's form, which
+     * would otherwise hang below the other two. Their contents are read afresh
+     * on every visit, since the plugin keeps writing them while the page is
+     * open.
      */
-    function showTab(statsTab) {
-      document.getElementById('eliot-tab-settings').classList.toggle('active', !statsTab);
-      document.getElementById('eliot-tab-stats').classList.toggle('active', statsTab);
-      document.getElementById('eliot-settings').classList.toggle('eliot-hidden', statsTab);
-      document.getElementById('eliot-stats-card').classList.toggle('eliot-hidden', !statsTab);
-      if (statsTab) {
-        homebridge.hideSchemaForm();
-        void showStats();
-      } else {
-        void homebridge.showSchemaForm();
+    const TABS = {
+      settings: 'eliot-settings',
+      desk: 'eliot-desk-card',
+      stats: 'eliot-stats-card',
+    };
+    function showTab(name) {
+      for (const [tab, panel] of Object.entries(TABS)) {
+        document.getElementById(`eliot-tab-${tab}`).classList.toggle('active', tab === name);
+        document.getElementById(panel).classList.toggle('eliot-hidden', tab !== name);
       }
+      if (name === 'settings') {
+        void homebridge.showSchemaForm();
+        return;
+      }
+      homebridge.hideSchemaForm();
+      void (name === 'desk' ? showDesks() : showStats());
     }
-    document.getElementById('eliot-tab-settings').addEventListener('click', () => showTab(false));
-    document.getElementById('eliot-tab-stats').addEventListener('click', () => showTab(true));
+    for (const tab of Object.keys(TABS)) {
+      document.getElementById(`eliot-tab-${tab}`).addEventListener('click', () => showTab(tab));
+    }
+
+    const mm = (value) => (value == null ? '–' : `${value} mm`);
+    const when = (iso) => new Date(iso).toLocaleString([], { dateStyle: 'medium', timeStyle: 'short' });
 
     /**
-     * Show the eco mode and sensitivity each configured desk last reported.
-     * Desks no longer in the config are left out; a desk the plugin has not
-     * reached yet has nothing to show, and neither does the card then.
+     * Show what each configured desk last reported about itself. Desks no
+     * longer in the config are left out, and one the plugin has not reached
+     * yet has nothing to show.
      */
-    async function showStored() {
-      const card = document.getElementById('eliot-stored-card');
-      const box = document.getElementById('eliot-stored');
+    async function showDesks() {
+      const box = document.getElementById('eliot-desk');
       let desks = [];
       try {
         const [platform] = await homebridge.getPluginConfig();
         const configured = new Set((platform?.desks ?? []).map((d) => String(d.mac ?? '').toUpperCase()));
-        ({ desks } = await homebridge.request('/desk-settings'));
+        ({ desks } = await homebridge.request('/desks'));
         desks = desks.filter((d) => configured.has(d.mac));
       } catch { /* shown as nothing */ }
       box.innerHTML = '';
-      card.classList.toggle('eliot-hidden', desks.length === 0);
+      document.getElementById('eliot-desk-none').classList.toggle('eliot-hidden', desks.length > 0);
       for (const desk of desks) {
-        const eco = desk.ecoMode === null
-          ? 'eco mode unknown'
-          : `eco mode ${desk.ecoMode}` + (desk.velocity === null ? '' : ` at speed ${desk.velocity}`);
-        const sensitivity = desk.sensitivity === null
-          ? 'anti-collision sensitivity unknown'
-          : `anti-collision sensitivity ${desk.sensitivity}`;
-        const line = document.createElement('div');
-        const name = document.createElement('b');
-        name.textContent = desk.name;
-        line.append(name, `: ${eco}, ${sensitivity}`);
-        const when = document.createElement('div');
-        when.className = 'eliot-hint';
-        when.textContent = `Read ${new Date(desk.readAt).toLocaleString([], {
-          dateStyle: 'medium',
-          timeStyle: 'short',
-        })}`;
-        box.append(line, when);
+        if (desks.length > 1) {
+          const title = document.createElement('h6');
+          title.className = 'mt-2';
+          title.textContent = desk.name;
+          box.append(title);
+        }
+        const rows = [
+          ['Connection', desk.connected ? 'connected' : 'not connected — values as last seen'],
+          ['Height', mm(desk.heightMm)],
+          ['Range', desk.minMm == null ? '–' : `${desk.minMm}–${desk.maxMm} mm`],
+        ];
+        if (desk.physicalMinMm != null &&
+            (desk.physicalMinMm !== desk.minMm || desk.physicalMaxMm !== desk.maxMm)) {
+          rows.push(['Without the handset limits', `${desk.physicalMinMm}–${desk.physicalMaxMm} mm`]);
+        }
+        for (const [i, height] of (desk.memories ?? [null, null, null, null]).entries()) {
+          rows.push([`Memory ${i + 1}`, desk.memories == null ? '–' : height == null ? 'not set' : mm(height)]);
+        }
+        rows.push(
+          ['Child lock', desk.locked == null ? '–' : desk.locked ? 'on' : 'off'],
+          ['Eco mode', desk.ecoMode == null ? '–'
+            : desk.ecoMode + (desk.velocity == null ? '' : `, travel speed ${desk.velocity}`)],
+          ['Anti-collision sensitivity', desk.sensitivity ?? '–'],
+          ['Display units', desk.units ?? '–'],
+          ['Firmware', desk.firmware == null ? '–' : String(desk.firmware)],
+        );
+        box.append(
+          table(null, rows),
+          note(
+            `Last change seen ${when(desk.changedAt)}. Eco mode and sensitivity are what ` +
+              'the desk has stored — what "Keep the desk\'s current setting" keeps. A ' +
+              'changed setting takes effect with the desk\'s next reset, so until then it ' +
+              'may still be running the one before.',
+          ),
+        );
       }
     }
-    void showStored();
 
     const check = document.getElementById('eliot-check');
 

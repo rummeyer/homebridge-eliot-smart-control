@@ -85,6 +85,9 @@ export interface DeskState {
   /** Usable travel: the soft limits if set, otherwise the physical range. */
   minMm: number | null;
   maxMm: number | null;
+  /** What the mechanism can do, whatever limits are set on the handset. */
+  physicalMinMm: number | null;
+  physicalMaxMm: number | null;
   /** Height as HomeKit's 0–100, or null before we know. */
   position: number | null;
   /** Where we are driving to, or equal to `position` when at rest. */
@@ -360,6 +363,8 @@ export class Desk extends EventEmitter {
       heightMm: this.#heightMm,
       minMm: min,
       maxMm: max,
+      physicalMinMm: this.#physMin,
+      physicalMaxMm: this.#physMax,
       position,
       target,
       moving: this.#move?.controller.direction ?? this.#native?.direction ?? null,

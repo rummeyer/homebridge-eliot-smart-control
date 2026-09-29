@@ -19,7 +19,9 @@ import { DeskLink } from './eliot/link.ts';
 import { heightToPercent } from './eliot/move.ts';
 import type { EliotPlatform } from './platform.ts';
 import { PostureStats, statsPath } from './stats.ts';
-import { storedFrom, storedSettingsPath, writeStoredSettings } from './stored-settings.ts';
+import { DeskSnapshot, snapshotPath } from './snapshot.ts';
+import { TravelTracker } from './travel.ts';
+import type { Travel } from './travel.ts';
 
 /**
  * How far off target a finished move may be and still report as arrived.
@@ -126,8 +128,8 @@ export class EliotAccessory {
   #snapTo: number | null = null;
   /** Last firmware version published, so it is only written when it changes. */
   #firmware: number | null = null;
-  /** The desk's settings as last written for the settings page, as JSON. */
-  #storedSettings: string | null = null;
+  /** What the desk says about itself, written down for the settings page. */
+  #snapshot: DeskSnapshot | undefined;
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
   /** The memory switched on in the Home app whose move is still under way. */
@@ -149,9 +151,16 @@ export class EliotAccessory {
   #autoTimer: NodeJS.Timeout | undefined;
   /** The last auto-movement status logged, so each is said once. */
   #autoStatus: string | null = null;
-  /** Sitting and standing time, counted while auto movement runs. */
+  /**
+   * Sitting and standing time, counted while auto movement runs, and every
+   * journey the desk makes, counted always.
+   */
   #stats: PostureStats | undefined;
   #statsSavedAt = Date.now();
+  #statsTimer: NodeJS.Timeout | undefined;
+  /** The line between sitting and standing, once auto movement is set up. */
+  #thresholdMm: number | null = null;
+  readonly #travel = new TravelTracker();
   /** Heights already complained about, so the log says it once and not hourly. */
   readonly #clamped = new Set<string>();
   /** The last slider target, and the timer waiting to see if more follow. */
@@ -250,9 +259,22 @@ export class EliotAccessory {
       this.#setUpAutoMove(config);
     }
 
+    // For the settings page, which runs in a process of its own and reads
+    // these from disk. Without a storage path — only in tests — there is
+    // nowhere to keep them.
+    const storage = platform.api.user?.storagePath();
+    if (storage) {
+      const mac = config.mac.toUpperCase();
+      this.#snapshot = new DeskSnapshot(snapshotPath(storage, config.mac), config.name, mac);
+      this.#stats = new PostureStats(statsPath(storage, config.mac), config.name, mac, this.#thresholdMm);
+      this.#statsTimer = setInterval(() => this.#sampleStats(), AUTO_TICK_MS);
+      this.#statsTimer.unref();
+    }
+
     this.#desk.on('change', (state) => {
       this.#syncFirmware(state);
-      this.#syncStoredSettings(state);
+      this.#syncSnapshot(state);
+      this.#trackTravel(state);
       this.#syncMemorySwitches(state);
       this.#publish(state);
     });
@@ -380,47 +402,66 @@ export class EliotAccessory {
       this.#platform.log.debug(`${this.#config.name}: moved by hand, auto-move timer restarted`);
     });
 
-    // Beside the mover and on its clock, because it counts only when the mover
-    // would act. Without a storage path — only in tests — there is nowhere to
-    // keep it.
-    const storage = this.#platform.api.user?.storagePath();
-    if (storage) {
-      this.#stats = new PostureStats(
-        statsPath(storage, config.mac),
-        config.name,
-        config.mac.toUpperCase(),
-        Math.round((auto.sittingMm + auto.standingMm) / 2),
-      );
-    }
+    // Sitting and standing are told apart halfway between the two heights;
+    // the statistics that use it are set up with every other desk's, in the
+    // constructor.
+    this.#thresholdMm = Math.round((auto.sittingMm + auto.standingMm) / 2);
 
-    this.#autoTimer = setInterval(() => {
-      this.#sampleStats();
-      void this.#autoTick();
-    }, AUTO_TICK_MS);
+    this.#autoTimer = setInterval(() => void this.#autoTick(), AUTO_TICK_MS);
     this.#autoTimer.unref();
   }
 
   /**
-   * Count the last half minute as sitting or standing, if it counts.
+   * Count the last half minute as sitting or standing, if it counts, and a
+   * journey that has gone quiet since the last height it reported.
    *
-   * It counts while auto movement is running: on, and inside the working hours
-   * — which, with none configured, is any time it is on.
+   * Posture counts while auto movement is running: on, and inside the working
+   * hours — which, with none configured, is any time it is on.
    */
   #sampleStats(): void {
     const stats = this.#stats;
-    const mover = this.#mover;
-    if (!stats || !mover) {
+    if (!stats) {
       return;
     }
     const now = new Date();
-    const state = this.#desk.state;
-    stats.sample(now.getTime(), {
-      counting: mover.enabled && mover.inWorkingTime(now),
-      heightMm: state.connected && state.ready ? state.heightMm : null,
-    });
+    const mover = this.#mover;
+    if (mover) {
+      const state = this.#desk.state;
+      stats.sample(now.getTime(), {
+        counting: mover.enabled && mover.inWorkingTime(now),
+        heightMm: state.connected && state.ready ? state.heightMm : null,
+      });
+    }
+    this.#countTravel(this.#travel.flush(now.getTime()));
     if (now.getTime() - this.#statsSavedAt >= STATS_SAVE_MS) {
       this.#saveStats(now);
     }
+  }
+
+  /**
+   * Feed the reported height to the journey tracker. Every change passes
+   * through here, so an unchanged height is the common case, and the tracker
+   * ignores it.
+   */
+  #trackTravel(state: DeskState): void {
+    if (!state.connected) {
+      this.#travel.reset();
+      return;
+    }
+    if (state.heightMm !== null) {
+      this.#countTravel(this.#travel.report(state.heightMm, Date.now()));
+    }
+  }
+
+  #countTravel(travel: Travel | null): void {
+    if (!travel || !this.#stats) {
+      return;
+    }
+    this.#stats.addTravel(travel);
+    this.#platform.log.debug(
+      `${this.#config.name}: moved ${travel.direction} ${travel.mm} mm in ` +
+        `${travel.seconds.toFixed(1)} s, ${(travel.mm / travel.seconds).toFixed(1)} mm/s`,
+    );
   }
 
   #saveStats(now: Date = new Date()): void {
@@ -429,7 +470,7 @@ export class EliotAccessory {
       this.#stats?.save(now);
     } catch (error) {
       this.#platform.log.warn(
-        `${this.#config.name}: could not save sitting and standing time: ${describeError(error)}`,
+        `${this.#config.name}: could not save the statistics: ${describeError(error)}`,
       );
     }
   }
@@ -759,8 +800,17 @@ export class EliotAccessory {
       clearInterval(this.#autoTimer);
       this.#autoTimer = undefined;
     }
+    if (this.#statsTimer) {
+      clearInterval(this.#statsTimer);
+      this.#statsTimer = undefined;
+    }
+    // A journey still under way when Homebridge stops is not counted: it has
+    // no end to time it to.
     this.#sampleStats();
     this.#saveStats();
+    if (this.#snapshot?.disconnect()) {
+      this.#saveSnapshot();
+    }
     await this.#desk.close();
   }
 
@@ -792,35 +842,24 @@ export class EliotAccessory {
   }
 
   /**
-   * Write down the eco mode and sensitivity the desk reports, for the settings
-   * page, which has no connection of its own to ask with.
+   * Write down what the desk reports about itself, for the Desk tab of the
+   * settings page, which has no connection of its own to ask with.
    *
-   * Only when they differ from what this process last wrote, not on every
-   * settings block the idle refresh brings. Without a storage path — only in
-   * tests — there is nowhere to write.
+   * Only when something changed, so the file's time says when that was rather
+   * than when the idle refresh last came round.
    */
-  #syncStoredSettings(state: DeskState): void {
-    const stored = storedFrom(state.settings);
-    const storage = this.#platform.api.user?.storagePath();
-    if (!stored || !storage) {
-      return;
+  #syncSnapshot(state: DeskState): void {
+    if (this.#snapshot?.update(state)) {
+      this.#saveSnapshot();
     }
-    const key = JSON.stringify(stored);
-    if (key === this.#storedSettings) {
-      return;
-    }
-    this.#storedSettings = key;
+  }
+
+  #saveSnapshot(): void {
     try {
-      writeStoredSettings(storedSettingsPath(storage, this.#config.mac), {
-        version: 1,
-        name: this.#config.name,
-        mac: this.#config.mac.toUpperCase(),
-        readAt: new Date().toISOString(),
-        ...stored,
-      });
+      this.#snapshot?.save();
     } catch (error) {
       this.#platform.log.warn(
-        `${this.#config.name}: could not write down the desk's settings: ${describeError(error)}`,
+        `${this.#config.name}: could not write down the desk's state: ${describeError(error)}`,
       );
     }
   }

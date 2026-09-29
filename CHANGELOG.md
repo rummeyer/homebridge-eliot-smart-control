@@ -8,12 +8,18 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ### Added
 
-- **Stored on the desk** on the settings page: the eco mode, travel speed and
-  anti-collision sensitivity the desk reported when the plugin last connected,
-  so "keep the current setting" says what it keeps. The page cannot ask the
-  desk itself while the plugin holds the dongle's only connection, so the
-  plugin writes these down in `eliot-desk-<address>.json` in the Homebridge
-  storage directory.
+- **A Desk tab** on the settings page, second after Settings: what the desk
+  last reported about itself — height, travel range, memory positions, child
+  lock, eco mode and travel speed, anti-collision sensitivity, display units
+  and firmware. The page cannot ask the desk while the plugin holds the
+  dongle's only connection, so the plugin writes these down in
+  `eliot-desk-<address>.json` in the Homebridge storage directory whenever
+  something changes; a desk out of reach shows its values as last seen.
+- **Travel speed** on the Statistics tab: every move of 3 cm or more, whoever
+  started it, timed from the first height reported on the way to the last,
+  ramp included, and averaged up, down and together over the same spans as
+  sitting and standing time. Counted on every desk, with or without auto
+  movement.
 
 ### Changed
 
