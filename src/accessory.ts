@@ -253,6 +253,14 @@ export class EliotAccessory {
         .getCharacteristic(Characteristic.On)
         .onGet(() => this.#lockState())
         .onSet((value) => this.#setLock(Boolean(value)));
+    } else {
+      this.#removeRestoredSwitch('childlock');
+    }
+
+    if (config.memorySwitches === false) {
+      for (const slot of MEMORY_SLOTS) {
+        this.#removeRestoredSwitch(`memory${slot}`);
+      }
     }
 
     if (config.autoMove) {
@@ -1007,6 +1015,21 @@ export class EliotAccessory {
         .onSet((value) => this.#setMemorySwitch(slot, Boolean(value)));
       this.#memoryServices.set(slot, service);
       this.#platform.log.info(`${this.#config.name}: memory ${slot} at ${height} mm`);
+    }
+  }
+
+  /**
+   * Drop a service left over from when it was wanted.
+   *
+   * Homebridge brings an accessory back from its cache with every service it
+   * had, so a switch turned off in the config is not gone by not being built:
+   * it stays in the Home app, without handlers, until it is removed here.
+   */
+  #removeRestoredSwitch(subtype: string): void {
+    const { Service: HapService } = this.#platform.api.hap;
+    const restored = this.#accessory.getServiceById(HapService.Switch, subtype);
+    if (restored) {
+      this.#accessory.removeService(restored);
     }
   }
 

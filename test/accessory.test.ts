@@ -666,6 +666,34 @@ test('a sensor from when a warning was wanted is removed', async (t) => {
   assert.equal(without.getServiceById('MotionSensor', 'automove-warning'), undefined);
 });
 
+test('memory switches from when they were wanted are removed', async (t) => {
+  const withSwitches = new FakeAccessory();
+  await start(t, withSwitches);
+  assert.ok(withSwitches.getServiceById('Switch', 'memory1'));
+
+  const without = new FakeAccessory();
+  without.services = withSwitches.services;
+  await start(t, without, { desk: { memorySwitches: false } });
+
+  for (const subtype of ['memory1', 'memory2', 'memory3', 'memory4']) {
+    assert.equal(without.getServiceById('Switch', subtype), undefined, subtype);
+  }
+  assert.ok(without.getServiceById('Switch', 'childlock'), 'the lock is not a memory');
+});
+
+test('a child lock switch from when it was wanted is removed', async (t) => {
+  const withLock = new FakeAccessory();
+  await start(t, withLock);
+  assert.ok(withLock.getServiceById('Switch', 'childlock'));
+
+  const without = new FakeAccessory();
+  without.services = withLock.services;
+  await start(t, without, { desk: { childLockSwitch: false } });
+
+  assert.equal(without.getServiceById('Switch', 'childlock'), undefined);
+  assert.ok(without.getServiceById('Switch', 'memory1'), 'the memories stay');
+});
+
 test('a bad auto-move setting costs auto movement, not the desk', async (t) => {
   const accessory = new FakeAccessory();
   await start(t, accessory, {
