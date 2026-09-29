@@ -105,9 +105,10 @@ dongle for five seconds.
 | **Name** | required | What the desk is called in the Home app |
 | **Dongle address** | required | Filled in for you by the scan |
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
+| **Eco mode** | leave the desk as it is | Eco mode and travel speed, as a pair: *on* is slow and quiet (about 22 mm/s), *off* about twice as fast (42 mm/s). Takes effect after a reset, which the plugin asks for |
+| **Anti-collision sensitivity** | leave the desk alone | How easily the control box stops for an obstruction: *high*, *medium* or *low* — see [below](#when-the-desk-stops-by-itself). Takes effect after a reset, which the plugin asks for |
+| **Child lock as a switch** | on | Offer the desk's child lock |
 | **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
-| **Child lock switch** | on | Offer the desk's child lock |
-| **Eco mode** | leave alone | Eco mode and travel speed, as a pair. Takes effect after a reset, which the plugin asks for |
 | **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
 
 Under **Advanced**, for all desks at once:
@@ -144,7 +145,7 @@ desk parked halfway still does the right thing.
 | | | |
 |---|---|---|
 | **Sitting / standing height** | 800 / 1200 mm | The two heights it moves between |
-| **Interval** | 30 min | How long at one height before moving to the other |
+| **Move every** | 30 min | How long at one height before moving to the other |
 | **Warn before** | 5 min | How long before a move the **Desk Move Soon** sensor trips. 0 turns the warning off and removes the sensor |
 | **Timer slider** | on | Show the countdown as a **Timer** slider |
 | **Turn off at the end of the day** | off | Switch auto movement off when the day is over, so it only runs on days you turn it on |
@@ -260,14 +261,15 @@ accurate — the desk did stop — but says nothing about why, because from the
 outside a desk stopped by an obstruction and a desk stopped for any other
 reason look identical.
 
-`collisionSensitivity` sets that threshold: `high`, `medium`, `low`, or `leave`
-to keep whatever the desk came with, which is the default. It is written to the
-control box when it differs from what the box is holding, once per connection.
+**Anti-collision sensitivity** in the settings (`collisionSensitivity` in
+`config.json`) sets that threshold: `high`, `medium`, `low`, or `leave` to keep
+whatever the desk came with, which is the default. It is written to the control
+box when it differs from what the box is holding, once per connection.
 
 **It takes effect after a reset**, the same way travel speed and eco mode do,
-and the plugin puts the desk into reset mode when it writes it — see below. And the setting belongs to the desk
-rather than to this plugin, so it stays changed until something changes it
-back.
+and the plugin puts the desk into reset mode when it writes it — see below. And
+the setting belongs to the desk rather than to this plugin, so it stays changed
+until something changes it back.
 
 ## Things worth knowing
 
