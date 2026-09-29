@@ -6,6 +6,16 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.2] — 2026-09-29
+
+### Fixed
+
+- **Memory switches turned off in the config now leave the Home app**, and so
+  does the child lock switch. Homebridge brings an accessory back from its
+  cache with every service it had, so a switch that was no longer built stayed
+  there, doing nothing. The timer slider and the warning sensor were already
+  removed this way.
+
 ## [1.15.1] — 2026-09-29
 
 ### Changed
@@ -666,7 +676,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...HEAD
+[1.15.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...v1.15.2
 [1.15.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.13.0...v1.14.0
