@@ -6,6 +6,20 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Added
+
+- **Stored on the desk** on the settings page: the eco mode, travel speed and
+  anti-collision sensitivity the desk reported when the plugin last connected,
+  so "keep the current setting" says what it keeps. The page cannot ask the
+  desk itself while the plugin holds the dongle's only connection, so the
+  plugin writes these down in `eliot-desk-<address>.json` in the Homebridge
+  storage directory.
+
+### Changed
+
+- The first choice for eco mode and sensitivity is now called **Keep the
+  desk's current setting**. It does what it did.
+
 ## [1.14.0] — 2026-09-25
 
 ### Added

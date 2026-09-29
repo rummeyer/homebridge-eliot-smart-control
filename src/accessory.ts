@@ -19,6 +19,7 @@ import { DeskLink } from './eliot/link.ts';
 import { heightToPercent } from './eliot/move.ts';
 import type { EliotPlatform } from './platform.ts';
 import { PostureStats, statsPath } from './stats.ts';
+import { storedFrom, storedSettingsPath, writeStoredSettings } from './stored-settings.ts';
 
 /**
  * How far off target a finished move may be and still report as arrived.
@@ -125,6 +126,8 @@ export class EliotAccessory {
   #snapTo: number | null = null;
   /** Last firmware version published, so it is only written when it changes. */
   #firmware: number | null = null;
+  /** The desk's settings as last written for the settings page, as JSON. */
+  #storedSettings: string | null = null;
   /** Memory switches by slot, created lazily once the desk lists its memories. */
   readonly #memoryServices = new Map<number, Service>();
   /** The memory switched on in the Home app whose move is still under way. */
@@ -249,6 +252,7 @@ export class EliotAccessory {
 
     this.#desk.on('change', (state) => {
       this.#syncFirmware(state);
+      this.#syncStoredSettings(state);
       this.#syncMemorySwitches(state);
       this.#publish(state);
     });
@@ -785,6 +789,40 @@ export class EliotAccessory {
     // Persisted so the next start can publish it in time to be read.
     this.#accessory.context.firmware = firmware;
     this.#platform.api.updatePlatformAccessories([this.#accessory]);
+  }
+
+  /**
+   * Write down the eco mode and sensitivity the desk reports, for the settings
+   * page, which has no connection of its own to ask with.
+   *
+   * Only when they differ from what this process last wrote, not on every
+   * settings block the idle refresh brings. Without a storage path — only in
+   * tests — there is nowhere to write.
+   */
+  #syncStoredSettings(state: DeskState): void {
+    const stored = storedFrom(state.settings);
+    const storage = this.#platform.api.user?.storagePath();
+    if (!stored || !storage) {
+      return;
+    }
+    const key = JSON.stringify(stored);
+    if (key === this.#storedSettings) {
+      return;
+    }
+    this.#storedSettings = key;
+    try {
+      writeStoredSettings(storedSettingsPath(storage, this.#config.mac), {
+        version: 1,
+        name: this.#config.name,
+        mac: this.#config.mac.toUpperCase(),
+        readAt: new Date().toISOString(),
+        ...stored,
+      });
+    } catch (error) {
+      this.#platform.log.warn(
+        `${this.#config.name}: could not write down the desk's settings: ${describeError(error)}`,
+      );
+    }
   }
 
   /**

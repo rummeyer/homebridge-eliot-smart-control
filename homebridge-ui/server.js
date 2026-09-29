@@ -15,6 +15,7 @@ import { HomebridgePluginUiServer, RequestError } from '@homebridge/plugin-ui-ut
 import { discoverDesks } from '../dist/eliot/discover.js';
 import { describeError } from '../dist/errors.js';
 import { readStats, shownSpans, statsPath, totalsFor } from '../dist/stats.js';
+import { readStoredSettings } from '../dist/stored-settings.js';
 
 class EliotUiServer extends HomebridgePluginUiServer {
   constructor() {
@@ -22,7 +23,30 @@ class EliotUiServer extends HomebridgePluginUiServer {
     this.onRequest('/scan', (r) => this.scan(r));
     this.onRequest('/stats', () => this.stats());
     this.onRequest('/stats/reset', (r) => this.resetStats(r));
+    this.onRequest('/desk-settings', () => this.deskSettings());
     this.ready();
+  }
+
+  /**
+   * Eco mode and sensitivity as each desk last reported them, from the files
+   * the plugin writes when it connects. Nothing for a desk it has not reached.
+   */
+  async deskSettings() {
+    const dir = this.homebridgeStoragePath;
+    if (!dir) {
+      return { desks: [] };
+    }
+    let names = [];
+    try {
+      names = readdirSync(dir).filter((n) => /^eliot-desk-[0-9A-F]{12}\.json$/.test(n));
+    } catch {
+      return { desks: [] };
+    }
+    const desks = names
+      .sort()
+      .map((file) => readStoredSettings(join(dir, file)))
+      .filter((data) => data !== null);
+    return { desks };
   }
 
   /**

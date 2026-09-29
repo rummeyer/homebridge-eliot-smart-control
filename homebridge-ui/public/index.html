@@ -53,6 +53,18 @@
   </div>
 </div>
 
+<div class="card mb-3 eliot-hidden" id="eliot-stored-card">
+  <div class="card-body">
+    <h5 class="card-title">Stored on the desk</h5>
+    <div id="eliot-stored"></div>
+    <p class="eliot-hint mt-2 mb-0">
+      What <i>Keep the desk's current setting</i> keeps, as the desk reported it when the
+      plugin last connected. A changed setting takes effect with the desk's next reset, so
+      until then it may still be running the one before.
+    </p>
+  </div>
+</div>
+
 <div class="alert alert-warning eliot-hidden" id="eliot-check" role="alert"></div>
 </div>
 
@@ -185,6 +197,45 @@
     }
     document.getElementById('eliot-tab-settings').addEventListener('click', () => showTab(false));
     document.getElementById('eliot-tab-stats').addEventListener('click', () => showTab(true));
+
+    /**
+     * Show the eco mode and sensitivity each configured desk last reported.
+     * Desks no longer in the config are left out; a desk the plugin has not
+     * reached yet has nothing to show, and neither does the card then.
+     */
+    async function showStored() {
+      const card = document.getElementById('eliot-stored-card');
+      const box = document.getElementById('eliot-stored');
+      let desks = [];
+      try {
+        const [platform] = await homebridge.getPluginConfig();
+        const configured = new Set((platform?.desks ?? []).map((d) => String(d.mac ?? '').toUpperCase()));
+        ({ desks } = await homebridge.request('/desk-settings'));
+        desks = desks.filter((d) => configured.has(d.mac));
+      } catch { /* shown as nothing */ }
+      box.innerHTML = '';
+      card.classList.toggle('eliot-hidden', desks.length === 0);
+      for (const desk of desks) {
+        const eco = desk.ecoMode === null
+          ? 'eco mode unknown'
+          : `eco mode ${desk.ecoMode}` + (desk.velocity === null ? '' : ` at speed ${desk.velocity}`);
+        const sensitivity = desk.sensitivity === null
+          ? 'anti-collision sensitivity unknown'
+          : `anti-collision sensitivity ${desk.sensitivity}`;
+        const line = document.createElement('div');
+        const name = document.createElement('b');
+        name.textContent = desk.name;
+        line.append(name, `: ${eco}, ${sensitivity}`);
+        const when = document.createElement('div');
+        when.className = 'eliot-hint';
+        when.textContent = `Read ${new Date(desk.readAt).toLocaleString([], {
+          dateStyle: 'medium',
+          timeStyle: 'short',
+        })}`;
+        box.append(line, when);
+      }
+    }
+    void showStored();
 
     const check = document.getElementById('eliot-check');
 

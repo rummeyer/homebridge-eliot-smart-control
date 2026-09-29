@@ -66,7 +66,7 @@
               "default": "leave",
               "oneOf": [
                 {
-                  "title": "Leave the desk as it is",
+                  "title": "Keep the desk's current setting",
                   "enum": [
                     "leave"
                   ]
@@ -84,7 +84,7 @@
                   ]
                 }
               ],
-              "description": "Eco mode and travel speed, set as a pair: about 22 mm/s against 42 mm/s.<br><br><b>Takes effect after a reset</b> — the plugin asks for one: turn the handset left when it shows RESET."
+              "description": "Eco mode and travel speed, set as a pair: about 22 mm/s against 42 mm/s. The desk's current setting is shown above, under <i>Stored on the desk</i>, once the plugin has connected.<br><br><b>Takes effect after a reset</b> — the plugin asks for one: turn the handset left when it shows RESET."
             },
             "collisionSensitivity": {
               "title": "Anti-collision sensitivity",
@@ -92,7 +92,7 @@
               "default": "leave",
               "oneOf": [
                 {
-                  "title": "Leave the desk alone",
+                  "title": "Keep the desk's current setting",
                   "enum": [
                     "leave"
                   ]
@@ -116,7 +116,7 @@
                   ]
                 }
               ],
-              "description": "The control box's own obstruction detection, not this plugin's. On <b>high</b>, resting your arms on the desk can be enough to stop a move.<br><br><b>Takes effect after a reset</b> — the plugin asks for one: turn the handset left when it shows RESET."
+              "description": "The control box's own obstruction detection, not this plugin's. On <b>high</b>, resting your arms on the desk can be enough to stop a move. The desk's current setting is shown above, under <i>Stored on the desk</i>, once the plugin has connected.<br><br><b>Takes effect after a reset</b> — the plugin asks for one: turn the handset left when it shows RESET."
             },
             "autoMove": {
               "type": "object",

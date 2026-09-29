@@ -925,11 +925,11 @@ export class Desk extends EventEmitter {
     }
     this.#ecoApplied = true;
 
-    // Said on every connection, whether or not anything is configured. Nothing
-    // else can tell you: the settings page cannot read the desk, because this
-    // plugin is holding the dongle's only connection. And the desk itself will
-    // not tell you either — what it reports is what it has stored, which is not
-    // necessarily what it is running.
+    // Said on every connection, whether or not anything is configured. The
+    // settings page cannot read the desk, because this plugin is holding the
+    // dongle's only connection; it shows what the accessory writes down from
+    // here. And the desk itself will not tell you either — what it reports is
+    // what it has stored, which is not necessarily what it is running.
     this.#log.info(
       `the desk stores eco mode ${lowPower ? 'on' : 'off'} at travel speed ${velocity}` +
         ' (what it is running is whatever it was last reset with)',

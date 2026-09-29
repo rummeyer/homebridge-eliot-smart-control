@@ -105,11 +105,16 @@ dongle for five seconds.
 | **Name** | required | What the desk is called in the Home app |
 | **Dongle address** | required | Filled in for you by the scan |
 | **Idle refresh** | 30 s | How often to ask a standing desk for its height. It reports by itself while moving, so this only catches the handset being used. 0 turns it off |
-| **Eco mode** | leave the desk as it is | Eco mode and travel speed, as a pair: *on* is slow and quiet (about 22 mm/s), *off* about twice as fast (42 mm/s). Takes effect after a reset, which the plugin asks for |
-| **Anti-collision sensitivity** | leave the desk alone | How easily the control box stops for an obstruction: *high*, *medium* or *low* — see [below](#when-the-desk-stops-by-itself). Takes effect after a reset, which the plugin asks for |
+| **Eco mode** | the desk's current setting | Eco mode and travel speed, as a pair: *on* is slow and quiet (about 22 mm/s), *off* about twice as fast (42 mm/s). Takes effect after a reset, which the plugin asks for |
+| **Anti-collision sensitivity** | the desk's current setting | How easily the control box stops for an obstruction: *high*, *medium* or *low* — see [below](#when-the-desk-stops-by-itself). Takes effect after a reset, which the plugin asks for |
 | **Child lock as a switch** | on | Offer the desk's child lock |
 | **Memory switches** | on | Offer your stored positions as switches that show which one the desk is at. Rename them in the Home app |
 | **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
+
+What the desk currently has stored for eco mode and sensitivity is shown on the
+settings page, under **Stored on the desk**, once the plugin has connected to
+it. The page cannot ask the desk itself — the plugin holds the dongle's only
+connection — so it shows what the desk reported then.
 
 Under **Advanced**, for all desks at once:
 
