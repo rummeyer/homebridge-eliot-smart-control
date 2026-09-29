@@ -48,6 +48,12 @@ locks it at the handset the Home app knows.
 counting down to the next move, and a **Desk Move Soon** sensor that warns
 before it. See [Automatic sit/stand](#automatic-sitstand).
 
+**And on the plugin's settings page** in the Homebridge UI, beside the
+settings: a **Desk** tab with everything the desk reports about itself —
+height, memory positions, eco mode, sensitivity and more — and a
+**Statistics** tab with how fast it travels and, with automatic sit/stand, how
+long you sat and stood. See [The settings page](#the-settings-page).
+
 Everything follows the desk, not just the other way round. Use the handset and
 the Home app keeps up. A desk out of range says *No Response* rather than
 showing you the height it had an hour ago.
@@ -112,7 +118,7 @@ dongle for five seconds.
 | **Automatic sit/stand** | off | Move between two heights on a timer — see [below](#automatic-sitstand) for its settings |
 
 What the desk currently has stored for eco mode and sensitivity is on the
-**Desk** tab of the settings page — see [below](#the-desk-tab).
+**Desk** tab of the settings page — see [below](#desk).
 
 Under **Advanced**, for all desks at once:
 
@@ -246,41 +252,51 @@ only the switch tells the two apart, so turn it off when you leave, or let
 Anything halfway between the sitting and standing heights or above counts as
 standing.
 
-The totals appear on the **Statistics** tab of the plugin's settings page in
-the Homebridge UI — today, and the last 3, 7, 30 and 100 days, each as soon as
-the record reaches back further than the span before it — and not in the Home
-app, which has no sensor for a length of time. **Reset data** below the tables
-starts the count again; it asks once more on the button itself before deleting
-anything. The totals are kept per day for 100 days, in
-`eliot-stats-<address>.json` in the Homebridge storage directory, and written
-every five minutes, so the page can trail the desk by that much. **Reset data**
-clears the [travel speed](#travel-speed) too, which lives in the same file.
+The totals are on the [Statistics tab](#statistics) of the settings page, not
+in the Home app, which has no sensor for a length of time.
 
-## The Desk tab
+## The settings page
 
-The second tab of the plugin's settings page shows what the desk last reported
-about itself: its height, the range it travels (and the wider one without the
-handset's limits, if those are set), the four memory positions, the child lock,
-eco mode with its travel speed, the anti-collision sensitivity, the display
-units and the firmware.
+The plugin's page in the Homebridge UI has three tabs: **Settings**, **Desk**
+and **Statistics**. Both of the last two read files the plugin keeps in the
+Homebridge storage directory: the page cannot ask the desk itself, because the
+plugin holds the dongle's only connection.
 
-The page cannot ask the desk itself — the plugin holds the dongle's only
-connection — so the plugin writes this down whenever something changes, in
-`eliot-desk-<address>.json` in the Homebridge storage directory, and the page
-reads that. A desk out of reach keeps its values, marked as last seen. Eco mode
-and sensitivity are what the desk has stored, which it runs from its next reset
-on; until then it may still be running the one before.
+### Desk
 
-## Travel speed
+**Current values from the desk** — what it last reported about itself: its
+height, the range it travels (and the wider one without the handset's limits,
+if those are set), the four memory positions, the child lock, eco mode with its
+travel speed, the anti-collision sensitivity, the display units and the
+firmware.
 
-Every move of 3 cm or more is timed, whoever started it — the Home app, a
-memory key or the handset — from the first height the desk reports on the way
-to the last, getting going and slowing down included. The **Statistics** tab
-shows the average as distance over time, up and down separately and together,
-for today and the last 3, 7, 30 and 100 days — each as soon as the timed moves
-reach back further than the span before it, counted from the first one and not
-from the start of the sitting and standing record. Counted on every desk,
-whether or not auto movement is on, and kept in the same file.
+The plugin writes this down whenever something changes, in
+`eliot-desk-<address>.json`. A desk out of reach keeps its values, marked as
+last seen. Eco mode and sensitivity are what the desk has stored, which it runs
+from its next reset on; until then it may still be running the one before.
+
+### Statistics
+
+Two tables, for today and the last 3, 7, 30 and 100 days. Each table shows a
+longer span as soon as its own record reaches back further than the span
+before it.
+
+**Sitting and standing.** How long the desk stood at each height while
+automatic sit/stand was running — see [how that is
+counted](#sitting-and-standing-time). Only on a desk with automatic sit/stand
+set up.
+
+**Travel speed.** Every move of 3 cm or more is timed, whoever started it — the
+Home app, a memory key or the handset — from the first height the desk reports
+on the way to the last, getting going and slowing down included. The table
+shows how many moves there were and the average speed, up and down separately
+and together, as distance over time. Counted on every desk, whether or not
+automatic sit/stand is on.
+
+Both are kept per day for 100 days, in `eliot-stats-<address>.json`, and
+written every five minutes, so the page can trail the desk by that much.
+**Reset data** below the tables starts both counts again; it asks once more on
+the button itself before deleting anything.
 
 ## When the desk stops by itself
 
