@@ -249,7 +249,7 @@ standing.
 The totals appear on the **Statistics** tab of the plugin's settings page in
 the Homebridge UI — today, and the last 3, 7, 30 and 100 days, each as soon as
 the record reaches back further than the span before it — and not in the Home
-app, which has no sensor for a length of time. **Reset data** below the table
+app, which has no sensor for a length of time. **Reset data** below the tables
 starts the count again; it asks once more on the button itself before deleting
 anything. The totals are kept per day for 100 days, in
 `eliot-stats-<address>.json` in the Homebridge storage directory, and written
@@ -276,9 +276,11 @@ on; until then it may still be running the one before.
 Every move of 3 cm or more is timed, whoever started it — the Home app, a
 memory key or the handset — from the first height the desk reports on the way
 to the last, getting going and slowing down included. The **Statistics** tab
-shows the average for today and the same spans as sitting and standing time,
-up and down separately and together, as distance over time. Counted on every
-desk, whether or not auto movement is on, and kept in the same file.
+shows the average as distance over time, up and down separately and together,
+for today and the last 3, 7, 30 and 100 days — each as soon as the timed moves
+reach back further than the span before it, counted from the first one and not
+from the start of the sitting and standing record. Counted on every desk,
+whether or not auto movement is on, and kept in the same file.
 
 ## When the desk stops by itself
 
@@ -290,9 +292,9 @@ outside a desk stopped by an obstruction and a desk stopped for any other
 reason look identical.
 
 **Anti-collision sensitivity** in the settings (`collisionSensitivity` in
-`config.json`) sets that threshold: `high`, `medium`, `low`, or `leave` to keep
-whatever the desk came with, which is the default. It is written to the control
-box when it differs from what the box is holding, once per connection.
+`config.json`) sets that threshold: `high`, `medium`, `low`, or `leave` —
+*Keep the desk's current setting* — which is the default. It is written to the
+control box when it differs from what the box is holding, once per connection.
 
 **It takes effect after a reset**, the same way travel speed and eco mode do,
 and the plugin puts the desk into reset mode when it writes it — see below. And
