@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.0] — 2026-09-29
+
 ### Added
 
 - **A Desk tab** on the settings page, second after Settings: what the desk
@@ -17,9 +19,9 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
   something changes; a desk out of reach shows its values as last seen.
 - **Travel speed** on the Statistics tab: every move of 3 cm or more, whoever
   started it, timed from the first height reported on the way to the last,
-  ramp included, and averaged up, down and together over the same spans as
-  sitting and standing time. Counted on every desk, with or without auto
-  movement.
+  ramp included, and averaged up, down and together for today and the last 3,
+  7, 30 and 100 days, each span shown once the timed moves reach back past the
+  one before it. Counted on every desk, with or without auto movement.
 
 ### Changed
 
@@ -652,7 +654,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...HEAD
+[1.15.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...v1.15.0
 [1.14.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.13.0...v1.14.0
 [1.13.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.12.1...v1.13.0
 [1.12.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.12.0...v1.12.1
