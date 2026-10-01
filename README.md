@@ -285,6 +285,10 @@ Two tables, for today and the last 3, 7, 30 and 100 days. Each table shows a
 longer span as soon as its own record reaches back further than the span
 before it.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rummeyer/homebridge-eliot-smart-control/main/assets/screenshots/statistics.png" width="600" alt="The Statistics tab: sitting and standing time with the standing share for today and the last 3, 7 and 30 days, and below it the number of moves and the average travel speed, up and down">
+</p>
+
 **Sitting and standing.** How long the desk stood at each height while
 automatic sit/stand was running — see [how that is
 counted](#sitting-and-standing-time). Only on a desk with automatic sit/stand
