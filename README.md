@@ -274,6 +274,10 @@ if those are set), the four memory positions, the child lock, eco mode with its
 travel speed, the anti-collision sensitivity, the display units and the
 firmware.
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rummeyer/homebridge-eliot-smart-control/main/assets/screenshots/desk.png" width="600" alt="The Desk tab: connection, height, range with and without the handset limits, the four memory positions, child lock, eco mode, anti-collision sensitivity, display units and firmware">
+</p>
+
 The plugin writes this down whenever something changes, in
 `eliot-desk-<address>.json`. A desk out of reach keeps its values, marked as
 last seen. Eco mode and sensitivity are what the desk has stored, which it runs
