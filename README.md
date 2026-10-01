@@ -106,6 +106,10 @@ dongle for five seconds.
 
 ## Settings
 
+<p align="center">
+  <img src="https://raw.githubusercontent.com/rummeyer/homebridge-eliot-smart-control/main/assets/screenshots/settings.png" width="520" alt="The settings page in the Homebridge UI: the scan for desks, one desk with its address and options, automatic sit/stand with working hours, and the Bluetooth adapter">
+</p>
+
 | Setting | Default | What it does |
 |---|---|---|
 | **Name** | – | Required. What the desk is called in the Home app |
