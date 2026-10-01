@@ -6,6 +6,13 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.3] — 2026-10-01
+
+### Changed
+
+- **The README shows the settings page, the Statistics tab and the Desk tab**,
+  in light and dark.
+
 ## [1.15.2] — 2026-09-29
 
 ### Fixed
@@ -676,7 +683,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.3...HEAD
+[1.15.3]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...v1.15.3
 [1.15.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...v1.15.2
 [1.15.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...v1.15.1
 [1.15.0]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.14.0...v1.15.0
