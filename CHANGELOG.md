@@ -6,6 +6,13 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.5] — 2026-10-02
+
+### Changed
+
+- **Reset data** looks as on Appliance Monitor: on the right, a little below
+  the table, outlined in red until it asks SURE?.
+
 ## [1.15.4] — 2026-10-02
 
 ### Changed
@@ -694,7 +701,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.4...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.5...HEAD
+[1.15.5]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.4...v1.15.5
 [1.15.4]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.3...v1.15.4
 [1.15.3]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...v1.15.3
 [1.15.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...v1.15.2

@@ -149,7 +149,11 @@
             ),
           );
         }
-        box.append(resetButton(desk));
+        // On the right, a little below the table, as on Appliance Monitor.
+        const reset = document.createElement('div');
+        reset.className = 'd-flex justify-content-end mt-3';
+        reset.append(resetButton(desk));
+        box.append(reset);
       }
     }
 
@@ -204,15 +208,17 @@
     function resetButton(desk) {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'btn btn-sm btn-danger mt-2';
+      button.className = 'btn btn-sm btn-outline-danger';
       button.textContent = 'Reset data';
       let armed = null;
       button.addEventListener('click', async () => {
         if (!armed) {
           button.textContent = 'SURE?';
+          button.classList.replace('btn-outline-danger', 'btn-danger');
           armed = setTimeout(() => {
             armed = null;
             button.textContent = 'Reset data';
+            button.classList.replace('btn-danger', 'btn-outline-danger');
           }, 5000);
           return;
         }
@@ -227,6 +233,7 @@
           homebridge.toast.error(error.message || String(error), 'Reset failed');
           button.disabled = false;
           button.textContent = 'Reset data';
+          button.classList.replace('btn-danger', 'btn-outline-danger');
         }
       });
       return button;
