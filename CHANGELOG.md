@@ -6,6 +6,17 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.4] — 2026-10-02
+
+### Changed
+
+- **The Statistics and Desk tables look like Appliance Monitor's**: a shaded
+  header in small capitals, lines between the rows, and text in the normal
+  colour rather than greyed out by the Homebridge UI's table style. The
+  section headings are as large as the card's, with room before each table.
+- **Shorter notes** under the Statistics and Desk tables.
+- The first column of the Statistics tables is headed **Period**.
+
 ## [1.15.3] — 2026-10-01
 
 ### Changed
@@ -683,7 +694,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.3...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.4...HEAD
+[1.15.4]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.3...v1.15.4
 [1.15.3]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...v1.15.3
 [1.15.2]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.1...v1.15.2
 [1.15.1]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.0...v1.15.1

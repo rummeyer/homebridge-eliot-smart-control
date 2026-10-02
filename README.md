@@ -298,11 +298,9 @@ automatic sit/stand was running — see [how that is
 counted](#sitting-and-standing-time). Only on a desk with automatic sit/stand
 set up.
 
-**Travel speed.** Every move of 3 cm or more is timed, whoever started it — the
-Home app, a memory key or the handset — from the first height the desk reports
-on the way to the last, getting going and slowing down included. The table
-shows how many moves there were and the average speed, up and down separately
-and together, as distance over time. Counted on every desk, whether or not
+**Travel speed.** Every move of 3 cm or more is timed, from the Home app, a
+memory key or the handset, ramp up and slow down included. The table shows the
+number of moves and the average speed, up, down and together. Counted on every desk, whether or not
 automatic sit/stand is on.
 
 Both are kept per day for 100 days, in `eliot-stats-<address>.json`, and

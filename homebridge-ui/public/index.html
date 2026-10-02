@@ -23,9 +23,19 @@
   .eliot-badge   { font-size: .7rem; padding: .15rem .4rem; border-radius: .25rem;
                    background: rgba(128,128,128,.2); white-space: nowrap; }
   .eliot-yes     { background: rgba(46,158,91,.25); }
-  .eliot-stats   { width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; }
-  .eliot-stats th, .eliot-stats td { padding: .25rem .5rem .25rem 0; }
+  /* As the Appliance Monitor plugin's statistics: a shaded header, lines between rows. */
+  .eliot-stats   { width: 100%; font-size: .9rem; font-variant-numeric: tabular-nums; border-collapse: collapse; }
+  .eliot-stats th, .eliot-stats td { padding: .45rem .5rem; vertical-align: top; }
+  /* The host greys every table cell out, with !important; not these tables'. */
+  .eliot-stats td { color: inherit !important; font-weight: 400; font-size: .9rem; }
   .eliot-stats th:not(:first-child), .eliot-stats td:not(:first-child) { text-align: right; }
+  .eliot-stats thead th { background: rgba(128,128,128,.1); font-size: .72rem; font-weight: 600;
+                          text-transform: uppercase; letter-spacing: .03em; padding-top: .55rem; padding-bottom: .55rem;
+                          border-bottom: 1px solid rgba(128,128,128,.35); }
+  .eliot-stats thead th:first-child { border-top-left-radius: .375rem; }
+  .eliot-stats thead th:last-child { border-top-right-radius: .375rem; }
+  .eliot-stats tbody td:first-child { font-weight: 500; }
+  .eliot-stats tbody tr + tr td { border-top: 1px solid rgba(128,128,128,.15); }
   .eliot-tabs    { margin-bottom: 1rem; }
   .eliot-tabs .nav-link { cursor: pointer; }
 </style>
@@ -59,10 +69,10 @@
 
 <div class="card mb-3 eliot-hidden" id="eliot-desk-card">
   <div class="card-body">
-    <h5 class="card-title">Current values from the desk</h5>
+    <h5 class="card-title mb-4">Current values from the desk</h5>
     <div id="eliot-desk"></div>
     <p class="eliot-hint mb-0 eliot-hidden" id="eliot-desk-none">
-      Nothing yet. The plugin writes this down once it has connected to the desk.
+      Nothing yet. Shown once the plugin has connected to the desk.
     </p>
   </div>
 </div>
@@ -71,9 +81,7 @@
   <div class="card-body">
     <div id="eliot-stats"></div>
     <p class="eliot-hint mb-0 eliot-hidden" id="eliot-stats-none">
-      Nothing counted yet. Journeys are counted whenever the desk moves, sitting and
-      standing time while Auto Movement is running, and the plugin writes them down
-      every five minutes.
+      Nothing counted yet. Saved every five minutes.
     </p>
   </div>
 </div>
@@ -116,14 +124,13 @@
         if (posture) {
           box.append(
             heading('Sitting and standing'),
-            table(['', 'Sitting', 'Standing', 'Standing share'], desk.spans.map((span) => {
+            table(['Period', 'Sitting', 'Standing', 'Standing share'], desk.spans.map((span) => {
               const total = span.sitting + span.standing;
               const share = total > 0 ? `${Math.round((span.standing / total) * 100)} %` : '–';
               return [spanName(span.days), hours(span.sitting), hours(span.standing), share];
             })),
             note(
-              'Counted only while Auto Movement is running: switched on, and inside ' +
-                'its working hours if you have set any.' +
+              'Counted while Auto Movement is on.' +
                 (desk.thresholdMm !== null ? ` Standing is ${desk.thresholdMm} mm and up.` : ''),
             ),
           );
@@ -131,16 +138,14 @@
         if (desk.travelSpans.some((s) => s.up.moves + s.down.moves > 0)) {
           box.append(
             heading('Travel speed', posture),
-            table(['', 'Moves', 'Average', 'Up', 'Down'], desk.travelSpans.map((span) => {
+            table(['Period', 'Moves', 'Average', 'Up', 'Down'], desk.travelSpans.map((span) => {
               const { up, down } = span;
               const all = { moves: up.moves + down.moves, mm: up.mm + down.mm,
                             seconds: up.seconds + down.seconds };
               return [spanName(span.days), String(all.moves), speed(all), speed(up), speed(down)];
             })),
             note(
-              'Every move of 3 cm or more, whoever started it, timed from the first height ' +
-                'the desk reports on the way to the last — getting going and slowing down ' +
-                'included. The average is the distance over the time, all moves together.',
+              'Every move of 3 cm or more, ramp up and slow down included.',
             ),
           );
         }
@@ -153,9 +158,10 @@
     /** Distance over time, as the desk's own unit rather than a percentage. */
     const speed = (t) => (t.moves > 0 && t.seconds > 0 ? `${(t.mm / t.seconds).toFixed(1)} mm/s` : '–');
 
+    /** A section's heading: as large as the card's, with room before its table, as on Appliance Monitor. */
     function heading(text, spaced = false) {
-      const h = document.createElement('h6');
-      h.className = spaced ? 'mt-4' : '';
+      const h = document.createElement('h5');
+      h.className = `card-title mb-4${spaced ? ' mt-5' : ''}`;
       h.textContent = text;
       return h;
     }
@@ -302,10 +308,8 @@
         box.append(
           table(null, rows),
           note(
-            `Last change seen ${when(desk.changedAt)}. Eco mode and sensitivity are what ` +
-              'the desk has stored — what "Keep the desk\'s current setting" keeps. A ' +
-              'changed setting takes effect with the desk\'s next reset, so until then it ' +
-              'may still be running the one before.',
+            `Last change ${when(desk.changedAt)}. A changed eco mode or sensitivity ` +
+              'takes effect after the desk\'s next reset.',
           ),
         );
       }
