@@ -6,6 +6,14 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.6] — 2026-10-07
+
+### Changed
+
+- **The plugin reads no environment variables.** `ELIOT_TRACE=1`, which put
+  every Bluetooth frame in the debug log, is gone; `tools/link-smoke.js`
+  shows the frames with `--trace` instead.
+
 ## [1.15.5] — 2026-10-02
 
 ### Changed
@@ -701,7 +709,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.5...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.6...HEAD
+[1.15.6]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.5...v1.15.6
 [1.15.5]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.4...v1.15.5
 [1.15.4]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.3...v1.15.4
 [1.15.3]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.2...v1.15.3

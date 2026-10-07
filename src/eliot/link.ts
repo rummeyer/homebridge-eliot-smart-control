@@ -68,15 +68,6 @@ export async function openAdapter(
  */
 const RECONNECT_BACKOFF_MS = [2_000, 5_000, 15_000, 30_000];
 
-/**
- * Log every frame in both directions, readably. Off unless `ELIOT_TRACE=1`.
- *
- * The idle poll alone is six frames every half minute, all saying what the
- * last six said, which buried everything else in the Homebridge debug log.
- * The trace is for working on the protocol, where the tools set it anyway.
- */
-const TRACE = process.env.ELIOT_TRACE === '1';
-
 /** How long to scan for a dongle BlueZ has never seen. */
 const DISCOVERY_TIMEOUT_MS = 30_000;
 
@@ -119,6 +110,13 @@ export class DeskLink extends EventEmitter {
   readonly #mac: string;
   readonly #log: LinkLogger;
   readonly #adapterName: string | undefined;
+  /**
+   * Log every frame in both directions, readably. Off for the plugin: the
+   * idle poll alone is six frames every half minute, all saying what the last
+   * six said, which buried everything else in the Homebridge debug log. The
+   * tools turn it on for working on the protocol.
+   */
+  readonly #trace: boolean;
   readonly #queue = new OperationQueue();
   readonly #reader = new FrameReader();
 
@@ -137,12 +135,16 @@ export class DeskLink extends EventEmitter {
   #rssi: number | null = null;
   #retry: NodeJS.Timeout | null = null;
 
-  /** @param adapterName BlueZ adapter, e.g. `hci1`; absent means the first one. */
-  constructor(mac: string, log: LinkLogger, adapterName?: string) {
+  /**
+   * @param adapterName BlueZ adapter, e.g. `hci1`; absent means the first one.
+   * @param trace Log every frame; see {@link #trace}.
+   */
+  constructor(mac: string, log: LinkLogger, adapterName?: string, trace = false) {
     super();
     this.#mac = mac.toUpperCase();
     this.#log = log;
     this.#adapterName = adapterName;
+    this.#trace = trace;
   }
 
   get connected(): boolean {
@@ -188,7 +190,7 @@ export class DeskLink extends EventEmitter {
     await this.#queue.run(async () => {
       try {
         await characteristic.writeValue(frame, { type: this.#writeType });
-        if (TRACE) {
+        if (this.#trace) {
           this.#log.debug(describeFrame('out', command, Buffer.from(params)));
         }
       } catch (error) {
@@ -314,7 +316,7 @@ export class DeskLink extends EventEmitter {
       // what was asked and never what came back, so "the desk did not answer"
       // and "the answer was not understood" look exactly alike — and the
       // second is the one that is this plugin's fault.
-      if (TRACE) {
+      if (this.#trace) {
         this.#log.debug(describeFrame('in', frame.command, frame.params));
       }
       this.emit('frame', frame);
