@@ -6,6 +6,15 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+### Changed
+
+- Verified by Homebridge; the README says so.
+
+### Fixed
+
+- A desk renamed in the settings now has its cached accessory renamed too
+  (`updateDisplayName`), as the Homebridge review pointed out.
+
 ## [1.15.6] — 2026-10-07
 
 ### Changed

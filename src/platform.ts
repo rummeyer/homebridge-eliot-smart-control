@@ -52,7 +52,7 @@ export class EliotPlatform implements DynamicPlatformPlugin {
 
       let accessory = this.#cached.get(uuid);
       if (accessory) {
-        accessory.displayName = desk.name;
+        accessory.updateDisplayName(desk.name);
         accessory.context.desk = desk satisfies DeskConfig;
         this.api.updatePlatformAccessories([accessory]);
         this.log.info(`Restoring ${desk.name} (${desk.mac})`);

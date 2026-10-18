@@ -76,6 +76,9 @@ class FakeAccessory {
     this.displayName = displayName;
     this.UUID = uuid;
   }
+  updateDisplayName(name: string) {
+    this.displayName = name;
+  }
   getService(kind: unknown) {
     return this.services.find((s) => s.kind === String(kind));
   }
