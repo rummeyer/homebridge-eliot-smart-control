@@ -16,6 +16,7 @@ import { createBluetooth } from 'node-ble';
 import type { Adapter, Device, GattCharacteristic } from 'node-ble';
 
 import { describeError } from '../errors.ts';
+import { pacingFor, recoverAdapter } from './adapter-health.ts';
 import { FrameReader, describeFrame, encode } from './protocol.ts';
 import type { Frame } from './protocol.ts';
 import { OperationQueue } from './queue.ts';
@@ -249,6 +250,7 @@ export class DeskLink extends EventEmitter {
       this.#notify = notify;
       this.#connected = true;
       this.#attempts = 0;
+      pacingFor((adapter as unknown as { adapter: string }).adapter).connected();
       this.#log.info(`connected to desk ${this.#mac}${describeSignal(this.#rssi)}`);
       if (this.#rssi !== null && this.#rssi < WEAK_RSSI_DBM) {
         this.#log.warn(
@@ -269,7 +271,13 @@ export class DeskLink extends EventEmitter {
             'connection at a time. Otherwise unplug the dongle for a few seconds.',
         );
       }
+      const adapter = this.#adapter;
       await this.#teardown();
+      // An adapter that hears nothing at all is switched off and on, and tried again at once.
+      if (await recoverAdapter(adapter, this.#attempts, this.#log)) {
+        void this.#connect();
+        return;
+      }
       this.#scheduleRetry();
     }
   }

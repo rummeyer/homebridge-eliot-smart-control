@@ -387,6 +387,16 @@ Move Homebridge closer, or put a second one near the desk.
 written down, indistinguishable from a range problem in practice, and worth
 ruling out early by trying another one. It cost a day here.
 
+**The Homebridge host's Bluetooth stops hearing anything.** BlueZ or the adapter
+under it can get stuck so that every connection is aborted and a scan finds
+nothing — for every device on that adapter at once. After five failed
+connections in a row the plugin listens for ten seconds: if no device near the
+adapter changes its signal in that time, it switches the adapter off and on,
+which clears it, and says so in the log. If other devices are heard, the
+adapter is fine and is left alone. Resets are at least half an hour apart, the
+pause doubling up to six hours while they do not help. Should one not be
+enough, `sudo systemctl restart bluetooth` on the host is the bigger hammer.
+
 **The tile shows nothing, or its room cannot be changed.** Restart the Home
 app, and the phone if that is not enough. The Home app keeps its own copy of
 what an accessory offers, and updating the plugin can change that — new
