@@ -6,6 +6,8 @@ adheres to [semantic versioning](https://semver.org/spec/v2.0.0.html).
 
 ## [Unreleased]
 
+## [1.15.8] — 2026-10-27
+
 ### Fixed
 
 - A Bluetooth adapter that has stopped hearing anything is switched off and
@@ -728,7 +730,8 @@ First release.
   verified against hardware, including the measured travel speed and stopping
   distance.
 
-[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.7...HEAD
+[Unreleased]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.8...HEAD
+[1.15.8]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.7...v1.15.8
 [1.15.7]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.6...v1.15.7
 [1.15.6]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.5...v1.15.6
 [1.15.5]: https://github.com/rummeyer/homebridge-eliot-smart-control/compare/v1.15.4...v1.15.5
